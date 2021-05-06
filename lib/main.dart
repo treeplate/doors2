@@ -308,8 +308,8 @@ class _GameWidgetState extends State<GameWidget> {
                 i < kVelStep * platform.moveDir.dx.abs();
                 i += kVelStep) {
               double spd = (platform.moveDir.dx < 0 ? -1 : 1) * kVelStep;
-              platform.topLeft = platform.topLeft + Offset(spd, 0);
-              platform.bottomRight = platform.bottomRight + Offset(spd, 0);
+              platform.topLeft += Offset(spd, 0);
+              platform.bottomRight += Offset(spd, 0);
               bool playerMVD = false;
               if (colliding() || colliding(holding)) {
                 playerX += spd;
@@ -327,8 +327,8 @@ class _GameWidgetState extends State<GameWidget> {
                   colliding(holding) ||
                   colliding(platform) ||
                   colliding(pushed)) {
-                platform?.topLeft = platform.topLeft - Offset(spd, 0);
-                platform?.bottomRight = platform.bottomRight - Offset(spd, 0);
+                platform?.topLeft -= Offset(spd, 0);
+                platform?.bottomRight -= Offset(spd, 0);
                 if (playerMVD) playerX -= (xVel < 0 ? -1 : 1) * kVelStep;
                 updateHoldingPos();
 
@@ -345,8 +345,8 @@ class _GameWidgetState extends State<GameWidget> {
                 i += kVelStep) {
               double spd = (platform.moveDir.dy < 0 ? -1 : 1) * kVelStep;
 
-              platform.topLeft = platform.topLeft + Offset(0, spd);
-              platform.bottomRight = platform.bottomRight + Offset(0, spd);
+              platform.topLeft += Offset(0, spd);
+              platform.bottomRight += Offset(0, spd);
               bool playerMVD = false;
               if (colliding() || colliding(holding)) {
                 playerY += spd;
@@ -365,8 +365,8 @@ class _GameWidgetState extends State<GameWidget> {
                   colliding(pushed)) {
                 if (playerMVD) playerY -= spd;
                 updateHoldingPos();
-                platform.topLeft = platform.topLeft - Offset(0, spd);
-                platform.bottomRight = platform.bottomRight - Offset(0, spd);
+                platform.topLeft -= Offset(0, spd);
+                platform.bottomRight -= Offset(0, spd);
 
                 pushed?.topLeft += Offset(0, spd);
 
