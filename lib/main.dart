@@ -332,9 +332,9 @@ class _GameWidgetState extends State<GameWidget> {
                 if (playerMVD) playerX -= (xVel < 0 ? -1 : 1) * kVelStep;
                 updateHoldingPos();
 
-                pushed?.topLeft -= Offset(spd, 0);
+                if(pushed?.pushable ?? false) pushed.topLeft -= Offset(spd, 0);
 
-                pushed?.bottomRight -= Offset(spd, 0);
+                if(pushed?.pushable ?? false) pushed.bottomRight -= Offset(spd, 0);
                 break;
               }
             }
@@ -497,7 +497,7 @@ class _GameWidgetState extends State<GameWidget> {
 class Impassable {
   Offset topLeft;
   Offset bottomRight;
-  bool pushable = false;
+  bool get pushable => false;
   Rect get rect => Rect.fromPoints(topLeft, bottomRight);
   Offset moveDir;
   void tick() {}
@@ -549,7 +549,7 @@ class Button extends Impassable {
 
 class Box extends Impassable {
   Box(Offset topLeft) : super(topLeft, topLeft + Offset(10, -10), Offset.zero);
-  bool pushable = true;
+  bool get pushable => true;
   @override
   void tick() {
     moveDir = moveDir - Offset(0, 1);
