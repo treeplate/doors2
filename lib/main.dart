@@ -43,7 +43,6 @@ class _MyAppState extends State<MyApp> {
 
   final List<List<Impassable>> levels = [
     [
-
       Box(Offset(150, 10)),
       Box(Offset(170, 10)),
       Box(Offset(190, 10)),
@@ -52,7 +51,7 @@ class _MyAppState extends State<MyApp> {
       Box(Offset(270, 10)),
       Box(Offset(290, 10)),
       Box(Offset(310, 10)),
-      Impassable(Offset(200, 300), Offset(300, 200), Offset.zero),
+      Impassable(Offset(200, 200), Offset(300, 100), Offset.zero),
     ],
     [
       Impassable(Offset(200, 50), Offset(300, 0), Offset.zero),
@@ -304,6 +303,17 @@ class _GameWidgetState extends State<GameWidget> {
 
           yVel -= 1;
           for (Impassable platform in impassables) {
+            platform.topLeft -= Offset(0, 1);
+            platform.bottomRight -= Offset(0, 1);
+            if (colliding(platform)) {
+              platform.moveDir.dx < 0
+                  ? platform.moveDir += Offset(.01, 0)
+                  : platform.moveDir.dx == 0
+                      ? null
+                      : platform.moveDir -= Offset(.01, 0);
+            }
+            platform.topLeft += Offset(0, 1);
+            platform.bottomRight += Offset(0, 1);
             for (double i = 0;
                 i < kVelStep * platform.moveDir.dx.abs();
                 i += kVelStep) {
@@ -316,27 +326,7 @@ class _GameWidgetState extends State<GameWidget> {
                 updateHoldingPos();
                 playerMVD = true;
               }
-
-              if (colliding(platform) && (collided?.pushable ?? false)) {
-                collided?.topLeft += Offset(spd, 0);
-
-                collided?.bottomRight += Offset(spd, 0);
-              }
-              Impassable pushed = collided;
-              if (colliding() ||
-                  colliding(holding) ||
-                  colliding(platform) ||
-                  colliding(pushed)) {
-                platform?.topLeft -= Offset(spd, 0);
-                platform?.bottomRight -= Offset(spd, 0);
-                if (playerMVD) playerX -= (xVel < 0 ? -1 : 1) * kVelStep;
-                updateHoldingPos();
-
-                if(pushed?.pushable ?? false) pushed.topLeft -= Offset(spd, 0);
-
-                if(pushed?.pushable ?? false) pushed.bottomRight -= Offset(spd, 0);
-                break;
-              }
+              updateCollision(platform, spd, 0, playerMVD);
             }
 
             if (colliding()) print("ERROR: COLLIDING AFTER PXMV");
@@ -344,7 +334,7 @@ class _GameWidgetState extends State<GameWidget> {
                 i < kVelStep * platform.moveDir.dy.abs();
                 i += kVelStep) {
               double spd = (platform.moveDir.dy < 0 ? -1 : 1) * kVelStep;
-
+              print("DEBUG: ${platform.topLeft} $spd");
               platform.topLeft += Offset(0, spd);
               platform.bottomRight += Offset(0, spd);
               bool playerMVD = false;
@@ -353,62 +343,55 @@ class _GameWidgetState extends State<GameWidget> {
                 updateHoldingPos();
                 playerMVD = true;
               }
-              if (colliding(platform) && (collided?.pushable ?? false)) {
-                collided?.topLeft -= Offset(0, spd);
 
-                collided?.bottomRight -= Offset(0, spd);
-              }
-              Impassable pushed = collided;
-              if (colliding() ||
-                  colliding(holding) ||
-                  colliding(platform) ||
-                  colliding(pushed)) {
-                if (playerMVD) playerY -= spd;
-                updateHoldingPos();
-                platform.topLeft -= Offset(0, spd);
-                platform.bottomRight -= Offset(0, spd);
-
-                pushed?.topLeft += Offset(0, spd);
-
-                pushed?.bottomRight += Offset(0, spd);
-                break;
-              }
+              updateCollision(platform, 0, spd, playerMVD);
             }
             double oX = platform.topLeft.dx;
             double oY = platform.topLeft.dy;
             platform.tick();
+            double sX = platform.topLeft.dx - oX;
+            double sY = platform.topLeft.dy - oY;
+
+            bool playerMVD = false;
             if (colliding() || colliding(holding)) {
-              playerX += platform.topLeft.dx - oX;
-              playerY += platform.topLeft.dy - oY;
+              playerX += sX;
+              playerY += sY;
+              playerMVD = true;
               updateHoldingPos();
             }
-            if (colliding(platform)) {
-              collided?.topLeft +=
-                  Offset(platform.topLeft.dx - oX, platform.topLeft.dy - oY);
-
-              collided?.bottomRight +=
-                  Offset(platform.topLeft.dx - oX, platform.topLeft.dy - oY);
-            }
-            Impassable pushed = collided;
-            if (colliding() ||
-                colliding(holding) ||
-                colliding(platform) ||
-                colliding(pushed)) {
-              playerX -= platform.topLeft.dx - oX;
-              playerY -= platform.topLeft.dy - oY;
-              updateHoldingPos();
-
-              pushed?.topLeft -=
-                  Offset(platform.topLeft.dx - oX, platform.topLeft.dy - oY);
-
-              pushed?.bottomRight -=
-                  Offset(platform.topLeft.dx - oX, platform.topLeft.dy - oY);
-              platform.unTick();
-            }
+            updateCollision(platform, sX, sY, playerMVD);
           }
         });
       },
     );
+  }
+
+  void updateCollision(
+      Impassable platform, double sX, double sY, bool playerMVD) {
+    List<Impassable> pushing = [platform, null, holding];
+    bool handling = true;
+    while (handling) {
+      if (pushing.any((element) => colliding(element)) &&
+          (collided?.pushable ?? false)) {
+        collided.topLeft += Offset(sX, sY);
+
+        collided.bottomRight += Offset(sX, sY);
+        pushing.add(collided);
+      }
+      if (collided == null) {
+        for (Impassable thing in pushing) {
+          thing?.topLeft -= Offset(sX, sY);
+          thing?.bottomRight -= Offset(sX, sY);
+          thing?.moveDir = Offset(0, 0);
+        }
+        if (playerMVD) {
+          playerX -= sX;
+          playerY -= sY;
+        }
+        updateHoldingPos();
+        break;
+      }
+    }
   }
 
   void updateHoldingPos() {
