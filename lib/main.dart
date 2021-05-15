@@ -173,17 +173,17 @@ class _GameWidgetState extends State<GameWidget> {
   VoidCallback get callback => widget.toEnd;
   bool colliding<T extends Impassable>([Impassable obj]) {
     Rect rect = obj?.rect ?? player;
-    for (Impassable wall in impassables) {
-      if (!rect.intersect(wall.rect).isEmpty && wall is T && obj != wall) {
-        if (wall is Button) wall.door.open = !wall.door.open;
-        collided = wall;
-        return true;
-      }
-    }
     collided = null;
     if (rect.topLeft.dy < 0 || rect.topLeft.dy > 400) {
       return true;
     }
+    for (Impassable wall in impassables) {
+      if (!rect.intersect(wall.rect).isEmpty && wall is T && obj != wall) {
+        collided = wall; // xxx return this?
+        return true;
+      }
+    }
+    collided = null;
     return false;
   }
 
@@ -265,7 +265,9 @@ class _GameWidgetState extends State<GameWidget> {
           holding?.bottomRight -= Offset(0, 1);
           playerY--;
           if (colliding(holding) && !colliding()) {
+            playerY++;
             updateHoldingPos();
+            playerY--;
             holding = null;
           }
           playerY++;
@@ -273,13 +275,14 @@ class _GameWidgetState extends State<GameWidget> {
           if (playerX >= endX) {
             playerX = 0;
             callback();
+            return;
           }
           if (playerX == 80 && widget.autoJump && !jumped) {
             jump(10);
             jumped = true;
           }
-          if (colliding()) print("ERROR: COLLIDING AT START");
-          for (double i = 0; i < kVelStep * xVel.abs(); i += kVelStep) {
+          assert(!colliding(), "ERROR: COLLIDING AT START");
+          for (double i = 0; i < xVel.abs(); i += kVelStep) {
             playerX += (xVel < 0 ? -1 : 1) * kVelStep;
             updateHoldingPos();
             if (colliding() || colliding(holding)) {
@@ -288,63 +291,63 @@ class _GameWidgetState extends State<GameWidget> {
               break;
             }
           }
-          if (colliding()) print("ERROR: COLLIDING AT START-ish");
-          for (double i = 0; i < kVelStep * yVel.abs(); i += kVelStep) {
-            var spd = (yVel < 0 ? -1 : 1) * kVelStep;
-            playerY += spd;
+          assert(!colliding(), "ERROR: COLLIDING after XMV");
+          for (double i = 0; i < yVel.abs(); i += kVelStep) {
+            var speed = (yVel < 0 ? -1 : 1) * kVelStep;
+            playerY += speed;
             updateHoldingPos();
             if (colliding() || colliding(holding)) {
-              playerY -= spd;
+              playerY -= speed;
               updateHoldingPos();
               yVel = 0;
               break;
             }
+          }
+          if (collided is Button) {
+            (collided as Button).door.open = !(collided as Button).door.open;
           }
 
           yVel -= 1;
           for (Impassable platform in impassables) {
             platform.topLeft -= Offset(0, 1);
             platform.bottomRight -= Offset(0, 1);
-            if (colliding(platform)) {
+            if (platform.moveDir != Offset.zero && colliding(platform)) {
               platform.moveDir.dx < 0
                   ? platform.moveDir += Offset(.01, 0)
-                  : platform.moveDir.dx == 0
-                      ? null
-                      : platform.moveDir -= Offset(.01, 0);
+                  : platform.moveDir -= Offset(.01, 0);
             }
             platform.topLeft += Offset(0, 1);
             platform.bottomRight += Offset(0, 1);
             for (double i = 0;
                 i < kVelStep * platform.moveDir.dx.abs();
                 i += kVelStep) {
-              double spd = (platform.moveDir.dx < 0 ? -1 : 1) * kVelStep;
-              platform.topLeft += Offset(spd, 0);
-              platform.bottomRight += Offset(spd, 0);
+              double speed = (platform.moveDir.dx < 0 ? -1 : 1) * kVelStep;
+              platform.topLeft += Offset(speed, 0);
+              platform.bottomRight += Offset(speed, 0);
               bool playerMVD = false;
               if (colliding() || colliding(holding)) {
-                playerX += spd;
+                playerX += speed;
                 updateHoldingPos();
                 playerMVD = true;
               }
-              updateCollision(platform, spd, 0, playerMVD);
+              updateCollision(platform, speed, 0, playerMVD);
             }
 
             if (colliding()) print("ERROR: COLLIDING AFTER PXMV");
             for (double i = 0;
                 i < kVelStep * platform.moveDir.dy.abs();
                 i += kVelStep) {
-              double spd = (platform.moveDir.dy < 0 ? -1 : 1) * kVelStep;
-              print("DEBUG: ${platform.topLeft} $spd");
-              platform.topLeft += Offset(0, spd);
-              platform.bottomRight += Offset(0, spd);
+              double speed = (platform.moveDir.dy < 0 ? -1 : 1) * kVelStep;
+              platform.topLeft += Offset(0, speed);
+              platform.bottomRight += Offset(0, speed);
               bool playerMVD = false;
               if (colliding() || colliding(holding)) {
-                playerY += spd;
-                updateHoldingPos();
+                playerY += speed;
+                updateHoldingPos(); 
                 playerMVD = true;
               }
 
-              updateCollision(platform, 0, spd, playerMVD);
+              updateCollision(platform, 0, speed, playerMVD);
             }
             double oX = platform.topLeft.dx;
             double oY = platform.topLeft.dy;
@@ -359,7 +362,8 @@ class _GameWidgetState extends State<GameWidget> {
               playerMVD = true;
               updateHoldingPos();
             }
-            updateCollision(platform, sX, sY, playerMVD);
+            if (sX != 0 || sY != 0)
+              updateCollision(platform, sX, sY, playerMVD, untick: true);
           }
         });
       },
@@ -367,18 +371,20 @@ class _GameWidgetState extends State<GameWidget> {
   }
 
   void updateCollision(
-      Impassable platform, double sX, double sY, bool playerMVD) {
-    List<Impassable> pushing = [platform, null, holding];
-    bool handling = true;
-    while (handling) {
-      if (pushing.any((element) => colliding(element)) &&
-          (collided?.pushable ?? false)) {
-        collided.topLeft += Offset(sX, sY);
-
-        collided.bottomRight += Offset(sX, sY);
+      Impassable platform, double sX, double sY, bool playerMVD, {bool untick = false}) {
+    assert(sX != 0.0 || sY != 0.0);
+    Set<Impassable> pushing = {platform, null, holding};
+    bool reverting = false;
+    while (!reverting) {
+      if (pushing.any(
+          (element) => colliding(element))) {
+        if(collided == null || !collided.pushable) reverting = true;
+        collided?.topLeft += Offset(sX, sY);
+        collided?.bottomRight += Offset(sX, sY);
         pushing.add(collided);
-      }
-      if (collided == null) {
+      } else break;
+      if (collided == null || (!reverting && collided.pushable == false)) {
+        // xxx what if collided.pushable == false?
         for (Impassable thing in pushing) {
           thing?.topLeft -= Offset(sX, sY);
           thing?.bottomRight -= Offset(sX, sY);
@@ -389,6 +395,7 @@ class _GameWidgetState extends State<GameWidget> {
           playerY -= sY;
         }
         updateHoldingPos();
+        if(untick) platform.unTick();
         break;
       }
     }
@@ -461,7 +468,8 @@ class _GameWidgetState extends State<GameWidget> {
     }
     playerX++;
     playerY--;
-    if (colliding<Box>()) {
+    if (colliding<Box>() && collided != null) {
+      // xxx this code can be cleaned up now
       Offset oldTL = collided?.topLeft ?? Offset(0, 0);
       Offset oldBR = collided?.bottomRight ?? Offset(0, 0);
       holding = collided;
@@ -472,19 +480,20 @@ class _GameWidgetState extends State<GameWidget> {
         holding = null;
       }
     }
+    // xxx doing this after the updateHoldingPos above means you're putting the box in a weird place
     playerX--;
     playerY++;
   }
 }
 
 class Impassable {
+  Impassable(this.topLeft, this.bottomRight, this.moveDir);
   Offset topLeft;
   Offset bottomRight;
   bool get pushable => false;
   Rect get rect => Rect.fromPoints(topLeft, bottomRight);
   Offset moveDir;
   void tick() {}
-  Impassable(this.topLeft, this.bottomRight, this.moveDir);
 
   void unTick() {}
 }
