@@ -10,7 +10,7 @@ void main() {
 class TitleScreen extends StatelessWidget {
   final VoidCallback startGame;
 
-  TitleScreen(this.startGame, {Key key}) : super(key: key);
+  TitleScreen(this.startGame, {Key? key}) : super(key: key);
   @override
   Widget build(BuildContext context) {
     return GameWidget(
@@ -19,7 +19,7 @@ class TitleScreen extends StatelessWidget {
         startGame();
       },
       reset: () {},
-      impassables: [Button(Offset(60, 50), titleDoor), titleDoor],
+      impassables: [Button(Offset(60, 50), 1), Door(Offset(100, 80))],
       sXVel: 1,
       endX: 120,
       autoJump: true,
@@ -27,14 +27,10 @@ class TitleScreen extends StatelessWidget {
   }
 }
 
-final Door titleDoor = Door(Offset(100, 80));
-
 class MyApp extends StatefulWidget {
   @override
   _MyAppState createState() => _MyAppState();
 }
-
-Door door = Door(Offset(210, 80));
 
 class _MyAppState extends State<MyApp> {
   bool titleScreen = false;
@@ -49,29 +45,31 @@ class _MyAppState extends State<MyApp> {
       Impassable(Offset(200, 50), Offset(300, 0), Offset.zero),
     ],
     [
-      Button(Offset(150, 50), door),
-      Impassable(Offset(150, 130), Offset(180, 50), Offset.zero),
-      Impassable(Offset(180, 50), Offset(210, 30), Offset.zero),
-      door,
+      Box(Offset(150, 10)),
+      Button(Offset(40, 20), 4),
+      Impassable(Offset(150, 200), Offset(180, 30), Offset.zero),
+      Impassable(Offset(180, 70), Offset(210, 30), Offset.zero),
+      Door(Offset(210, 80)),
     ],
     [
       Box(Offset(150, 10)),
-      Box(Offset(170, 200)),
-      Button(Offset(150, 50), door),
-      Impassable(Offset(150, 130), Offset(180, 50), Offset.zero),
+      Box(Offset(170, 10)),
+      Button(Offset(40, 20), 6),
+      Button(Offset(60, 20), 7),
+      Impassable(Offset(150, 200), Offset(180, 30), Offset.zero),
       Impassable(Offset(180, 70), Offset(210, 30), Offset.zero),
-      door,
+      Door(Offset(210, 80)),
     ],
   ];
   final List<String> texts = [
     "D to move the yellow square right. Get to the far right.",
     "W to jump.",
-    "Jump under the red box, activating the button, to open the door.",
-    "Press E to the IMMEDIATE left of the box to pick up the box. Press it again to stop."
+    "TODO",
+    "Debug level"
   ];
   int level = 0;
 
-  List<double> goals = [320, 320, 230, 230];
+  List<double> goals = [320, 320, 230, 230, 230];
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -109,7 +107,6 @@ class _MyAppState extends State<MyApp> {
                   toEnd: () {
                     setState(() {
                       level++;
-                      door.open = false;
                       if (level >= levels.length) {
                         endScreen = true;
                       }
@@ -117,12 +114,9 @@ class _MyAppState extends State<MyApp> {
                   },
                   reset: () {
                     setState(() {
-                      //titleScreen = true;
-                      endScreen = false;
-                      level = 0;
-                      titleDoor.open = false;
-
-                      door.open = false;
+                      for(Impassable platform in levels[level]) {
+                        platform.reset();
+                      }
                     });
                   },
                   impassables: levels[level],
@@ -137,12 +131,12 @@ class GameWidget extends StatefulWidget {
   final double endX;
 
   GameWidget(
-      {Key key,
-      @required this.title,
-      @required this.toEnd,
-      @required this.reset,
-      @required this.impassables,
-      @required this.endX,
+      {Key? key,
+      required this.title,
+      required this.toEnd,
+      required this.reset,
+      required this.impassables,
+      required this.endX,
       this.sXVel = 0,
       this.autoJump = false})
       : super(key: key);
@@ -163,9 +157,9 @@ class _GameWidgetState extends State<GameWidget> {
   static const bool dashMode = false;
   static const double friction = 0.01;
 
-  Impassable collided;
+  Impassable? collided;
   VoidCallback get callback => widget.toEnd;
-  bool colliding<T extends Impassable>([Impassable obj]) {
+  bool colliding<T extends Impassable>([Impassable? obj]) {
     Rect rect = obj?.rect ?? player;
     collided = null;
     if ((rect.top < 0 || rect.bottom > 400) && T == Impassable) {
@@ -191,10 +185,10 @@ class _GameWidgetState extends State<GameWidget> {
   double playerX = 0;
   double playerY = 0;
   Rect get player => Offset(playerX, playerY) & Size(20, 20);
-  double xVel;
+  late double xVel;
   double yVel = 0;
   List<Impassable> get impassables => widget.impassables;
-  BuildContext focusContext;
+  late BuildContext focusContext;
   @override
   Widget build(BuildContext context) {
     return Focus(
@@ -238,7 +232,7 @@ class _GameWidgetState extends State<GameWidget> {
   }
 
   double screenWidth = double.infinity;
-  Timer timer;
+  Timer? timer;
   double get endX => widget.endX;
 
   void setUpdateTimer() {
@@ -246,6 +240,9 @@ class _GameWidgetState extends State<GameWidget> {
       Duration(milliseconds: (100 / 6).round()),
       (timer) {
         setState(() {
+          for (Button button in impassables.whereType<Button>()) {
+            (impassables[button.door] as Door).open = false;
+          }
           holding?.topLeft -= Offset(0, 1);
           holding?.bottomRight -= Offset(0, 1);
           playerY--;
@@ -270,11 +267,7 @@ class _GameWidgetState extends State<GameWidget> {
           for (double i = 0; i < xVel.abs(); i += kVelStep) {
             playerX += (xVel < 0 ? -1 : 1) * kVelStep;
             updateHoldingPos();
-            if (colliding() || colliding(holding)) {
-              playerX -= (xVel < 0 ? -1 : 1) * kVelStep;
-              updateHoldingPos();
-              break;
-            }
+            updateCollision(null, xVel, 0, true);
           }
           assert(!colliding(), "ERROR: COLLIDING after XMV");
           for (double i = 0; i < yVel.abs(); i += kVelStep) {
@@ -289,7 +282,7 @@ class _GameWidgetState extends State<GameWidget> {
             }
           }
           if (collided is Button) {
-            (collided as Button).door.open = !(collided as Button).door.open;
+            (impassables[(collided as Button).door] as Door).open = true;
           }
 
           yVel -= 1;
@@ -352,22 +345,28 @@ class _GameWidgetState extends State<GameWidget> {
   }
 
   void updateCollision(
-      Impassable platform, double sX, double sY, bool playerMVD,
+      Impassable? platform, double sX, double sY, bool playerMVD,
       {bool untick = false}) {
     assert(sX != 0.0 || sY != 0.0);
-    Set<Impassable> pushing = {platform, holding};
+    Set<Impassable?> pushing = {platform, holding};
     bool reverting = false;
     while (!reverting) {
       if (colliding()) {
         if (playerMVD) {
-          reverting = true;
+          if (collided == null || !collided!.pushable) reverting = true;
+          if (collided is Button) {
+            (impassables[(collided as Button).door] as Door).open = true;
+          }
+          collided?.topLeft += Offset(sX, sY);
+          collided?.bottomRight += Offset(sX, sY);
+          pushing.add(collided);
         } else {
           playerX += sX;
           playerY += sY;
         }
         playerMVD = true;
       } else if (pushing.any((element) => colliding(element))) {
-        if (collided == null || !collided.pushable) reverting = true;
+        if (collided == null || !collided!.pushable) reverting = true;
         collided?.topLeft += Offset(sX, sY);
         collided?.bottomRight += Offset(sX, sY);
         pushing.add(collided);
@@ -375,7 +374,7 @@ class _GameWidgetState extends State<GameWidget> {
         break;
       }
       if (reverting) {
-        for (Impassable thing in pushing) {
+        for (Impassable? thing in pushing) {
           if (thing is! Door || !untick) {
             thing?.topLeft -= Offset(sX, sY);
             thing?.bottomRight -= Offset(sX, sY);
@@ -388,7 +387,7 @@ class _GameWidgetState extends State<GameWidget> {
           playerY -= sY;
         }
         updateHoldingPos();
-        if (untick) platform.unTick();
+        if (untick) platform?.unTick();
         break;
       }
     }
@@ -396,7 +395,7 @@ class _GameWidgetState extends State<GameWidget> {
 
   void updateHoldingPos() {
     holding?.bottomRight = player.topLeft +
-        Offset(player.width + holding.rect.width + 2, holding.rect.height + 0);
+        Offset(player.width + holding!.rect.width + 2, holding!.rect.height + 0);
     holding?.topLeft = player.topLeft + Offset(player.width + 2, 0);
     holding?.moveDir = Offset.zero;
   }
@@ -452,33 +451,44 @@ class _GameWidgetState extends State<GameWidget> {
     playerY += 3;
   }
 
-  Impassable holding;
+  Impassable? holding;
   void handleTake() {
     if (holding != null) {
-      holding.moveDir = Offset(xVel, yVel);
+      holding!.moveDir = Offset(xVel, yVel);
       holding = null;
       return;
     }
-    playerX++;
-    playerY--;
+    playerX += 10;
     if (colliding<Box>() && collided != null) {
-      Offset oldTL = collided.topLeft;
-      Offset oldBR = collided.bottomRight;
+      Offset oldTL = collided!.topLeft;
+      Offset oldBR = collided!.bottomRight;
       holding = collided;
 
-      playerY++;
-      playerX--;
+      playerX -= 10;
       updateHoldingPos();
       if (colliding(holding)) {
-        holding.topLeft = oldTL;
-        holding.bottomRight = oldBR;
+        holding!.topLeft = oldTL;
+        holding!.bottomRight = oldBR;
         holding = null;
       }
-      playerY--;
-      playerX++;
+      playerX += 10;
     }
-    playerX--;
-    playerY++;
+    playerX -= 20;
+    if (colliding<Box>() && collided != null) {
+      Offset oldTL = collided!.topLeft;
+      Offset oldBR = collided!.bottomRight;
+      holding = collided;
+
+      playerX += 10;
+      updateHoldingPos();
+      if (colliding(holding)) {
+        holding!.topLeft = oldTL;
+        holding!.bottomRight = oldBR;
+        holding = null;
+      }
+      playerX -= 10;
+    }
+    playerX += 10;
   }
 }
 
@@ -486,6 +496,9 @@ class Impassable {
   Impassable(this.topLeft, this.bottomRight, this.moveDir);
   Offset topLeft;
   Offset bottomRight;
+  late final Offset oldTopLeft = topLeft;
+  late final Offset oldBottomRight = topLeft;
+
   bool get pushable => false;
   Rect get rect => Rect.fromPoints(topLeft, bottomRight);
   Offset moveDir;
@@ -494,6 +507,13 @@ class Impassable {
   void unTick() {}
   String toString() =>
       "$runtimeType ($hashCode) at $topLeft (moveDir: $moveDir)";
+  @mustCallSuper
+  void reset() {
+    if(pushable) {
+      topLeft = oldTopLeft;
+      bottomRight = oldBottomRight;
+    }
+  }
 }
 
 class Door extends Impassable {
@@ -502,6 +522,10 @@ class Door extends Impassable {
         super(topLeft, topLeft + Offset(10, -50), Offset.zero);
   bool open = false;
   double t = 1;
+  void reset() {
+    super.reset();
+    open = false;
+  }
   @override
   void tick() {
     if (open && t < 1) {
@@ -532,8 +556,7 @@ class Button extends Impassable {
   Button(Offset topLeft, this.door)
       : super(topLeft, topLeft + Offset(30, -20), Offset.zero);
 
-  final Door door;
-
+  final int door;
   String toString() => "<Button>";
 }
 
@@ -572,7 +595,11 @@ class GamePainter extends CustomPainter {
         x < endX - (playerX - size.width / 2) + 20;
         x++) {
       canvas.drawLine(
-        Offset(x, playerX + 20 > x + (playerX - size.width / 2) ? size.height - playerY : 0),
+        Offset(
+            x,
+            playerX + 20 > x + (playerX - size.width / 2)
+                ? size.height - playerY
+                : 0),
         Offset(x, size.height),
         Paint()..color = Colors.green,
       );
@@ -581,17 +608,34 @@ class GamePainter extends CustomPainter {
         Offset(size.width / 2, ((size.height) - playerY) - 20) &
             Size.square(20),
         Paint()..color = Colors.yellow);
-    canvas.drawRect(Rect.fromLTRB(size.width / 2, 0, size.width / 2 + 20, size.height - playerY), Paint()..color = Colors.black.withAlpha(20));
+    canvas.drawRect(
+        Rect.fromLTRB(
+            size.width / 2, 0, size.width / 2 + 20, size.height - playerY),
+        Paint()..color = Colors.black.withAlpha(20));
     if (isDash)
       dash.paint(
           canvas, Offset(size.width / 2, ((size.height) - playerY) - 20));
     for (double i = -1; i < size.width / 10; i++) {
       canvas.drawCircle(Offset(i * 10 - playerX % 10, size.height), 1,
           Paint()..color = Colors.black);
-      canvas.drawRect(
-          Offset(i * 10 - playerX % 10, 0) & Size(1, 1), Paint()..color = Color(0xFF202020));
+      canvas.drawRect(Offset(i * 10 - playerX % 10, 0) & Size(1, 1),
+          Paint()..color = Color(0xFF202020));
     }
     for (Impassable impassable in impassables) {
+       Color? color;
+    switch (impassable.runtimeType) {
+            case Button:
+              color = Colors.red;
+              break;
+             case Impassable:
+              color = Colors.brown;
+              break;
+             case Box:
+              color = Colors.grey;
+              break;
+            case Door:
+              color = Colors.cyan;
+          }
       canvas.drawRect(
         Rect.fromLTRB(
           impassable.topLeft.dx - (playerX - size.width / 2),
@@ -599,7 +643,7 @@ class GamePainter extends CustomPainter {
           impassable.bottomRight.dx - (playerX - size.width / 2),
           (size.height) - (impassable.bottomRight.dy),
         ),
-        Paint()..color = impassable is Button ? Colors.red.withAlpha(100) : Colors.brown.withAlpha(100),
+        Paint()..color = color!.withOpacity(0.3),
       );
     }
   }
