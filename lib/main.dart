@@ -7,6 +7,8 @@ void main() {
   runApp(MyApp());
 }
 
+final Stopwatch stopwatch = Stopwatch();
+
 class TitleScreen extends StatelessWidget {
   final VoidCallback startGame;
 
@@ -18,11 +20,10 @@ class TitleScreen extends StatelessWidget {
       toEnd: () {
         startGame();
       },
-      reset: () {},
       impassables: [Button(Offset(60, 50), 1), Door(Offset(100, 80))],
       sXVel: 1,
       endX: 120,
-      autoJump: true,
+      auto: true,
     );
   }
 }
@@ -45,28 +46,25 @@ class _MyAppState extends State<MyApp> {
       Impassable(Offset(200, 50), Offset(300, 0), Offset.zero),
     ],
     [
-      Box(Offset(150, 10)),
+      Box(Offset(30, 10)),
+      Impassable(Offset(50, 10), Offset(80, 0), Offset.zero),
+      Impassable(Offset(210, 130), Offset(220, 0), Offset.zero),
+    ],
+    [
+      Box(Offset(170, 10)),
       Button(Offset(40, 20), 4),
       Impassable(Offset(150, 200), Offset(180, 30), Offset.zero),
       Impassable(Offset(180, 70), Offset(210, 30), Offset.zero),
       Door(Offset(210, 80)),
     ],
-    [
-      Box(Offset(150, 10)),
-      Box(Offset(170, 10)),
-      Button(Offset(40, 20), 6),
-      Button(Offset(80, 20), 7),
-      Impassable(Offset(150, 200), Offset(180, 30), Offset.zero),
-      Impassable(Offset(180, 70), Offset(210, 30), Offset.zero),
-      Door(Offset(210, 80)),
-      Door(Offset(220, 80)),
-    ],
   ];
+
+  final List<Rect> playerWrap = [Rect.fromLTRB(0, 0, 0, 0)];
   final List<String> texts = [
     "D to move the yellow square right. Get to the far right.",
     "W to jump.",
-    "TODO",
-    "Debug level"
+    "E near a box to pick up the box, and E to drop it",
+    "If you put a box on a button, the corresponding door opens."
   ];
   int level = 0;
 
@@ -93,11 +91,11 @@ class _MyAppState extends State<MyApp> {
                         DoorWidget(),
                         SizedBox(width: 10),
                         Text(
-                          "Now go to Eli's Bathroom Closet",
+                          "You have won the game in ${stopwatch.elapsed.inSeconds}.${((stopwatch.elapsed.inSeconds + 1) * 1000 - stopwatch.elapsedMilliseconds).toString().padLeft(3, '0')} seconds",
                           style: TextStyle(fontSize: 20, color: Colors.brown),
                         ),
                         SizedBox(width: 10),
-                        DoorWidget()
+                        DoorWidget(),
                       ],
                     ),
                   ),
@@ -109,14 +107,8 @@ class _MyAppState extends State<MyApp> {
                     setState(() {
                       level++;
                       if (level >= levels.length) {
+                        stopwatch.stop();
                         endScreen = true;
-                      }
-                    });
-                  },
-                  reset: () {
-                    setState(() {
-                      for (Impassable platform in levels[level]) {
-                        platform.reset();
                       }
                     });
                   },
@@ -127,7 +119,7 @@ class _MyAppState extends State<MyApp> {
 }
 
 class GameWidget extends StatefulWidget {
-  final bool autoJump;
+  final bool auto;
 
   final double endX;
 
@@ -135,15 +127,13 @@ class GameWidget extends StatefulWidget {
       {Key? key,
       required this.title,
       required this.toEnd,
-      required this.reset,
       required this.impassables,
       required this.endX,
       this.sXVel = 0,
-      this.autoJump = false})
+      this.auto = false})
       : super(key: key);
 
   final VoidCallback toEnd;
-  final VoidCallback reset;
   final String title;
   final double sXVel;
 
@@ -161,26 +151,52 @@ class _GameWidgetState extends State<GameWidget> {
   Impassable? collided;
   VoidCallback get callback => widget.toEnd;
   bool colliding<T extends Impassable>([Impassable? obj]) {
+    MapEntry<bool, Impassable?> r =
+        collidingStatic<T>(player, impassables, obj);
+    collided = r.value;
+    return r.key;
+  }
+
+  static MapEntry<bool, Impassable?> collidingStatic<T extends Impassable>(
+      Rect player, List<Impassable> impassables,
+      [Impassable? obj]) {
     Rect rect = obj?.rect ?? player;
-    collided = null;
+    Impassable? collided;
     if ((rect.top < 0 || rect.bottom > 400) && T == Impassable) {
-      return true;
+      return MapEntry(true, collided);
     }
     for (Impassable wall in impassables) {
       if (!rect.intersect(wall.rect).isEmpty && wall is T && obj != wall) {
         collided = wall;
-        return true;
+        return MapEntry(true, collided);
       }
     }
+    if (obj != null && !rect.intersect(player).isEmpty) {
+      return MapEntry(true, null);
+    }
     collided = null;
-    return false;
+    return MapEntry(false, collided);
   }
 
   @override
   void initState() {
     super.initState();
     xVel = widget.sXVel;
-    if (!widget.autoJump) setUpdateTimer();
+    if (!widget.auto) setUpdateTimer();
+  }
+
+  void reset() {
+    setState(() {
+      for (Impassable obj in impassables) {
+        Offset oTL = obj.topLeft;
+        Offset oBR = obj.bottomRight;
+        obj.reset();
+        if (colliding(obj)) {
+          obj.topLeft = oTL;
+          obj.bottomRight = oBR;
+        }
+      }
+    });
   }
 
   double playerX = 0;
@@ -203,8 +219,7 @@ class _GameWidgetState extends State<GameWidget> {
           appBar: AppBar(
             title: Text(widget.title),
             actions: [
-              IconButton(
-                  onPressed: widget.reset, icon: Icon(Icons.replay_outlined)),
+              IconButton(onPressed: reset, icon: Icon(Icons.replay_outlined)),
               if (timer == null)
                 IconButton(
                     onPressed: setUpdateTimer, icon: Icon(Icons.play_arrow)),
@@ -260,11 +275,11 @@ class _GameWidgetState extends State<GameWidget> {
             callback();
             return;
           }
-          if (playerX == 80 && widget.autoJump && !jumped) {
+          if (playerX == 80 && widget.auto && !jumped) {
             jump(10);
             jumped = true;
           }
-          assert(!colliding(), "ERROR: COLLIDING AT START");
+          assert(!colliding(), "ERROR: COLLIDING with $collided AT START");
           for (double i = 0; i < xVel.abs(); i += kVelStep) {
             playerX += (xVel < 0 ? -1 : 1) * kVelStep;
             updateHoldingPos();
@@ -413,6 +428,7 @@ class _GameWidgetState extends State<GameWidget> {
   }
 
   KeyEventResult _handleKeyPress(FocusNode node, RawKeyEvent event) {
+    if (!stopwatch.isRunning) stopwatch.start();
     if (event is RawKeyUpEvent) {
       if (event.logicalKey == LogicalKeyboardKey.keyW ||
           event.logicalKey == LogicalKeyboardKey.arrowUp) jumped = false;
@@ -498,11 +514,16 @@ class _GameWidgetState extends State<GameWidget> {
 }
 
 class Impassable {
-  Impassable(this.topLeft, this.bottomRight, this.moveDir);
+  Impassable(this.topLeft, this.bottomRight, this.moveDir) {
+    // ignore: unnecessary_statements
+    oldBottomRight;
+    // ignore: unnecessary_statements
+    oldTopLeft;
+  }
   Offset topLeft;
   Offset bottomRight;
   late final Offset oldTopLeft = topLeft;
-  late final Offset oldBottomRight = topLeft;
+  late final Offset oldBottomRight = bottomRight;
 
   bool get pushable => false;
   Rect get rect => Rect.fromPoints(topLeft, bottomRight);
