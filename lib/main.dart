@@ -57,6 +57,16 @@ class _MyAppState extends State<MyApp> {
       Impassable(Offset(180, 70), Offset(210, 30), Offset.zero),
       Door(Offset(210, 80)),
     ],
+    [
+      Box(Offset(150, 10)),
+      Box(Offset(170, 10)),
+      Button(Offset(20, 20), 6),
+      Button(Offset(70, 20), 7),
+      Impassable(Offset(150, 200), Offset(180, 30), Offset.zero),
+      Impassable(Offset(180, 70), Offset(210, 30), Offset.zero),
+      Door(Offset(210, 80)),
+      Door(Offset(220, 80)),
+    ]
   ];
 
   final List<Rect> playerWrap = [Rect.fromLTRB(0, 0, 0, 0)];
@@ -64,11 +74,12 @@ class _MyAppState extends State<MyApp> {
     "D to move the yellow square right. Get to the far right.",
     "W to jump.",
     "E near a box to pick up the box, and E to drop it",
-    "If you put a box on a button, the corresponding door opens."
+    "If you put a box on a button, the corresponding door opens.",
+    "More boxes, more buttons"
   ];
   int level = 0;
 
-  List<double> goals = [320, 320, 230, 230, 230];
+  List<double> goals = [320, 320, 230, 230, 230, 230];
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
