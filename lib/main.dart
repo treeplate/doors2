@@ -66,7 +66,12 @@ class _MyAppState extends State<MyApp> {
       Impassable(Offset(180, 70), Offset(210, 30), Offset.zero),
       Door(Offset(210, 80)),
       Door(Offset(220, 80)),
-    ]
+    ],
+    [
+      Impassable(Offset(210, 250), Offset(220, 0), Offset.zero),
+      MovingPlatform(
+          Offset(180, 20), Offset(210, 0), Offset(180, 250), Offset(0, 1)),
+    ],
   ];
 
   final List<Rect> playerWrap = [Rect.fromLTRB(0, 0, 0, 0)];
@@ -75,11 +80,20 @@ class _MyAppState extends State<MyApp> {
     "W to jump.",
     "E near a box to pick up the box, and E to drop it",
     "If you put a box on a button, the corresponding door opens.",
-    "More boxes, more buttons"
+    "More boxes, more buttons",
+    "The platform will bring you up",
   ];
   int level = 0;
 
-  List<double> goals = [320, 320, 230, 230, 230, 230];
+  List<double> goals = [
+    320,
+    320,
+    230,
+    230,
+    230,
+    230,
+    230,
+  ];
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -126,6 +140,25 @@ class _MyAppState extends State<MyApp> {
                   impassables: levels[level],
                 ),
     );
+  }
+}
+
+class MovingPlatform extends Impassable {
+  MovingPlatform(Offset offset, Offset offset2, this.endingPos, Offset offset3)
+      : super(offset, offset2, offset3);
+  final Offset endingPos;
+  void tick() {
+    super.tick();
+    if (topLeft.dy > endingPos.dy) {
+      print("RESSIENGTINGd");
+      reset();
+    }
+  }
+
+  void reset() {
+    super.reset();
+    topLeft = oldTopLeft;
+    bottomRight = oldBottomRight;
   }
 }
 
@@ -673,6 +706,9 @@ class GamePainter extends CustomPainter {
           break;
         case Door:
           color = Colors.cyan;
+          break;
+        case MovingPlatform:
+          color = Colors.brown;
       }
       canvas.drawRect(
         Rect.fromLTRB(
