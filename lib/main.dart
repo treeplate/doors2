@@ -190,8 +190,15 @@ class _GameWidgetState extends State<GameWidget> {
   @override
   void initState() {
     super.initState();
-    physicsSimulator =
-        PhysicsSimulator(widget.toEnd, widget.impassables, widget.endX);
+    physicsSimulator = PhysicsSimulator(() {
+      widget.toEnd();
+    }, widget.impassables, widget.endX);
+    physicsSimulator.addListener(() {
+      setState(() {
+        print("Hello, regularly scheduled update here.");
+        // equivelant to just calling markNeedsBuild
+      });
+    });
     physicsSimulator.initState();
   }
 

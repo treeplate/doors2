@@ -65,7 +65,7 @@ class PhysicsSimulator extends ChangeNotifier {
   double playerX = 0;
   double playerY = 0;
   Rect get player => Offset(playerX, playerY) & Size(20, 20);
-  late double xVel;
+  double xVel = 0;
   double yVel = 0;
   final List<Impassable> impassables;
 
@@ -169,8 +169,8 @@ class PhysicsSimulator extends ChangeNotifier {
         if (sX != 0 || sY != 0)
           updateCollision(platform, sX, sY, playerMVD, untick: true);
       }
+      notifyListeners();
     });
-    notifyListeners();
   }
 
   void updateCollision(
