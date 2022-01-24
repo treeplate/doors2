@@ -80,8 +80,8 @@ class _MyAppState extends State<MyApp> {
     "W to jump.",
     "E near a box to pick up the box, and E to drop it",
     "If you put a box on a button, the corresponding door opens.",
-    "More boxes, more buttons",
-    "The platform will bring you up",
+    "More boxes, more buttons.",
+    "The platform will bring you up.",
   ];
   int level = 0;
 
@@ -150,7 +150,6 @@ class MovingPlatform extends Impassable {
   void tick() {
     super.tick();
     if (topLeft.dy > endingPos.dy) {
-      print("RESSIENGTINGd");
       reset();
     }
   }
@@ -189,7 +188,7 @@ class GameWidget extends StatefulWidget {
 
 class _GameWidgetState extends State<GameWidget> {
   static const double kVelStep = .1;
-  static const bool dashMode = false;
+  static const bool dashMode = true;
   static const double friction = 0.01;
 
   Impassable? collided;
@@ -300,6 +299,9 @@ class _GameWidgetState extends State<GameWidget> {
       Duration(milliseconds: (100 / 6).round()),
       (timer) {
         setState(() {
+          if (holding != null && !impassables.contains(holding)) {
+            impassables.add(holding!);
+          }
           for (Button button in impassables.whereType<Button>()) {
             (impassables[button.door] as Door).open = false;
           }
