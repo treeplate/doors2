@@ -8,12 +8,35 @@ import 'package:flutter/widgets.dart'
 
 final Stopwatch stopwatch = Stopwatch();
 
+class MovingPlatform extends Impassable {
+  MovingPlatform(Offset offset, Offset offset2, this.endingPos, this.offset3)
+      : super(offset, offset2, offset3);
+  final Offset offset3;
+  final Offset endingPos;
+  void tick() {
+    super.tick();
+    if (topLeft.dy > endingPos.dy) {
+      reset();
+    }
+  }
+
+  void reset() {
+    super.reset();
+    topLeft = oldTopLeft;
+    bottomRight = oldBottomRight;
+    moveDir = offset3;
+  }
+}
+
+List<Stopwatch> levelTimes = [Stopwatch()];
+
 class PhysicsSimulator extends ChangeNotifier {
   static const double kVelStep = .1;
-  static const bool dashMode = false;
+  bool get dashMode => false;
   static const double friction = 0.01;
 
   PhysicsSimulator(this.nextLevel, this.impassables, this.endX);
+
   final VoidCallback nextLevel;
 
   Impassable? collided;
@@ -119,6 +142,15 @@ class PhysicsSimulator extends ChangeNotifier {
       }
 
       yVel -= 1;
+      for (Box box in impassables.whereType<Box>()) {
+        box.topLeft -= Offset(0, 1);
+        box.bottomRight -= Offset(0, 1);
+        if (colliding<Button>(box)) {
+          (impassables[(collided as Button).door] as Door).open = true;
+        }
+        box.topLeft += Offset(0, 1);
+        box.bottomRight += Offset(0, 1);
+      }
       for (Impassable platform in impassables) {
         platform.topLeft -= Offset(0, 1);
         platform.bottomRight -= Offset(0, 1);
@@ -244,7 +276,10 @@ class PhysicsSimulator extends ChangeNotifier {
   }
 
   void handleKeyPress(RawKeyEvent event) {
-    if (!stopwatch.isRunning) stopwatch.start();
+    if (!stopwatch.isRunning) {
+      stopwatch.start();
+      levelTimes.first.start();
+    }
     if (event is RawKeyUpEvent) {
       if (event.logicalKey == LogicalKeyboardKey.keyW ||
           event.logicalKey == LogicalKeyboardKey.arrowUp) jumped = false;

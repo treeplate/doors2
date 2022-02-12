@@ -58,7 +58,7 @@ class _MyAppState extends State<MyApp> {
       Box(Offset(150, 10)),
       Box(Offset(170, 10)),
       Button(Offset(20, 20), 6),
-      Button(Offset(70, 20), 7),
+      Button(Offset(60, 20), 7),
       Impassable(Offset(150, 200), Offset(180, 30), Offset.zero),
       Impassable(Offset(180, 70), Offset(210, 30), Offset.zero),
       Door(Offset(210, 80)),
@@ -68,6 +68,17 @@ class _MyAppState extends State<MyApp> {
       Impassable(Offset(210, 250), Offset(220, 0), Offset.zero),
       MovingPlatform(
           Offset(180, 20), Offset(210, 0), Offset(180, 250), Offset(0, 1)),
+    ],
+    [
+      Impassable(Offset(80, 400), Offset(90, 310), Offset.zero),
+      Impassable(Offset(50, 250), Offset(230, 240), Offset.zero),
+      Impassable(Offset(220, 240), Offset(230, 0), Offset.zero),
+      Impassable(Offset(80, 310), Offset(230, 300), Offset.zero),
+      Door(Offset(70, 350)),
+      Box(Offset(60, 260)),
+      Button(Offset(160, 20), 4),
+      MovingPlatform(
+          Offset(20, 20), Offset(50, 0), Offset(20, 270), Offset(0, 1)),
     ],
   ];
 
@@ -79,12 +90,14 @@ class _MyAppState extends State<MyApp> {
     "If you put a box on a button, the corresponding door opens.",
     "More boxes, more buttons.",
     "The platform will bring you up.",
+    "",
   ];
   int level = 0;
 
   List<double> goals = [
     320,
     320,
+    230,
     230,
     230,
     230,
@@ -112,9 +125,25 @@ class _MyAppState extends State<MyApp> {
                       children: [
                         DoorWidget(),
                         SizedBox(width: 10),
-                        Text(
-                          "You have won the game in ${stopwatch.elapsed.inSeconds}.${((stopwatch.elapsed.inSeconds + 1) * 1000 - stopwatch.elapsedMilliseconds).toString().padLeft(3, '0')} seconds",
-                          style: TextStyle(fontSize: 20, color: Colors.brown),
+                        Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              "You have won the game in ${stopwatch.elapsed.inSeconds}.${((stopwatch.elapsedMilliseconds - stopwatch.elapsed.inSeconds * 1000)).toString().padLeft(3, '0')} seconds (${stopwatch.elapsed})",
+                              style: TextStyle(color: Colors.brown),
+                            ),
+                            Text(
+                              "Level times",
+                              style: TextStyle(color: Colors.brown),
+                            ),
+                            ...levelTimes.map((e) => Text(
+                                '${e.elapsed.inSeconds}.' +
+                                    (e.elapsedMilliseconds -
+                                            e.elapsed.inSeconds * 1000)
+                                        .toString()
+                                        .padLeft(3, '0') +
+                                    ' (${e.elapsed})'))
+                          ],
                         ),
                         SizedBox(width: 10),
                         DoorWidget(),
@@ -123,11 +152,15 @@ class _MyAppState extends State<MyApp> {
                   ),
                 )
               : GameWidget(
-                  title: texts[level],
+                  title:
+                      '${texts[level]} (previous level time ${level == 0 ? 'N/A' : '${levelTimes[level - 1].elapsed.inSeconds}.' + ((levelTimes[level - 1].elapsed.inSeconds + 1) * 1000 - levelTimes[level - 1].elapsedMilliseconds).toString().padLeft(3, '0')})',
                   endX: goals[level],
                   toEnd: () {
                     setState(() {
                       level++;
+                      levelTimes.last.stop();
+                      if (level < levels.length)
+                        levelTimes.add(Stopwatch()..start());
                       if (level >= levels.length) {
                         stopwatch.stop();
                         endScreen = true;
@@ -137,24 +170,6 @@ class _MyAppState extends State<MyApp> {
                   impassables: levels[level],
                 ),
     );
-  }
-}
-
-class MovingPlatform extends Impassable {
-  MovingPlatform(Offset offset, Offset offset2, this.endingPos, Offset offset3)
-      : super(offset, offset2, offset3);
-  final Offset endingPos;
-  void tick() {
-    super.tick();
-    if (topLeft.dy > endingPos.dy) {
-      reset();
-    }
-  }
-
-  void reset() {
-    super.reset();
-    topLeft = oldTopLeft;
-    bottomRight = oldBottomRight;
   }
 }
 
@@ -184,17 +199,20 @@ class GameWidget extends StatefulWidget {
 }
 
 class _GameWidgetState extends State<GameWidget> {
-  late final PhysicsSimulator physicsSimulator;
+  late PhysicsSimulator physicsSimulator;
 
   @override
   void initState() {
     super.initState();
+    setupPhysics();
+  }
+
+  void setupPhysics() {
     physicsSimulator = PhysicsSimulator(() {
       widget.toEnd();
     }, widget.impassables, widget.endX);
     physicsSimulator.addListener(() {
       setState(() {
-        print("Hello, regularly scheduled update here.");
         // equivelant to just calling markNeedsBuild
       });
     });
@@ -234,7 +252,7 @@ class _GameWidgetState extends State<GameWidget> {
                         physicsSimulator.playerX,
                         physicsSimulator.playerY,
                         physicsSimulator.impassables,
-                        PhysicsSimulator.dashMode,
+                        physicsSimulator.dashMode,
                         physicsSimulator.endX),
                     size: Size(constraints.biggest.width, 400),
                   ),
@@ -255,6 +273,18 @@ class _GameWidgetState extends State<GameWidget> {
   KeyEventResult _handleKeyPress(FocusNode node, RawKeyEvent event) {
     physicsSimulator.handleKeyPress(event);
     return KeyEventResult.handled;
+  }
+
+  void didUpdateWidget(GameWidget oldWidget) {
+    double oldXVel = physicsSimulator.xVel;
+    double oldYVel = physicsSimulator.yVel;
+    double oldY = physicsSimulator.playerY;
+    super.didUpdateWidget(oldWidget);
+    physicsSimulator.dispose();
+    setupPhysics();
+    physicsSimulator.xVel = oldXVel;
+    physicsSimulator.yVel = oldYVel;
+    physicsSimulator.playerY = oldY;
   }
 }
 
