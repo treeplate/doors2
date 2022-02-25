@@ -133,16 +133,10 @@ class _MyAppState extends State<MyApp> {
                               style: TextStyle(color: Colors.brown),
                             ),
                             Text(
-                              "Level times",
+                              "Level results",
                               style: TextStyle(color: Colors.brown),
                             ),
-                            ...levelTimes.map((e) => Text(
-                                '${e.elapsed.inSeconds}.' +
-                                    (e.elapsedMilliseconds -
-                                            e.elapsed.inSeconds * 1000)
-                                        .toString()
-                                        .padLeft(3, '0') +
-                                    ' (${e.elapsed})'))
+                            ...levelData.map((e) => Text('$e'))
                           ],
                         ),
                         SizedBox(width: 10),
@@ -153,14 +147,12 @@ class _MyAppState extends State<MyApp> {
                 )
               : GameWidget(
                   title:
-                      '${texts[level]} (previous level time ${level == 0 ? 'N/A' : '${levelTimes[level - 1].elapsed.inSeconds}.' + ((levelTimes[level - 1].elapsed.inSeconds + 1) * 1000 - levelTimes[level - 1].elapsedMilliseconds).toString().padLeft(3, '0')})',
+                      '${texts[level]} (previous level ${level == 0 ? 'N/A' : '${levelData[level - 1]}'})',
                   endX: goals[level],
                   toEnd: () {
                     setState(() {
                       level++;
-                      levelTimes.last.stop();
-                      if (level < levels.length)
-                        levelTimes.add(Stopwatch()..start());
+                      if (level < levels.length) levelData.add(LevelData());
                       if (level >= levels.length) {
                         stopwatch.stop();
                         endScreen = true;
@@ -198,16 +190,23 @@ class GameWidget extends StatefulWidget {
   _GameWidgetState createState() => _GameWidgetState();
 }
 
-class _GameWidgetState extends State<GameWidget> {
+class _GameWidgetState extends State<GameWidget>
+    with SingleTickerProviderStateMixin {
   late PhysicsSimulator physicsSimulator;
 
   @override
   void initState() {
     super.initState();
-    setupPhysics();
+    setupPhysics(false);
+    createTicker(tick).start();
   }
 
-  void setupPhysics() {
+  void setupPhysics(bool physicsSimExists) {
+    Iterable<Player>? oldPlayers;
+    if (physicsSimExists) oldPlayers = physicsSimulator.impassables.whereType();
+    if (physicsSimExists) {
+      physicsSimulator.dispose();
+    }
     physicsSimulator = PhysicsSimulator(() {
       widget.toEnd();
     }, widget.impassables, widget.endX);
@@ -216,7 +215,21 @@ class _GameWidgetState extends State<GameWidget> {
         // equivelant to just calling markNeedsBuild
       });
     });
-    physicsSimulator.initState();
+    if (physicsSimExists) {
+      double i = 0;
+      for (Player player in oldPlayers!) {
+        player.topLeft = Offset(i, player.topLeft.dy);
+        player.bottomRight = Offset(i + 20, player.bottomRight.dy);
+        physicsSimulator.impassables.add(player);
+        if (physicsSimulator.colliding(player.rect)) {
+          player.topLeft = Offset(i, 400);
+          player.bottomRight = Offset(i + 20, 380);
+        }
+        i += 40;
+      }
+    } else {
+      physicsSimulator.impassables.add(Player(Offset(0, 400), Offset(0, 0)));
+    }
   }
 
   void reset() {
@@ -248,12 +261,8 @@ class _GameWidgetState extends State<GameWidget> {
                   color: Colors.white,
                   height: 400,
                   child: CustomPaint(
-                    painter: GamePainter(
-                        physicsSimulator.playerX,
-                        physicsSimulator.playerY,
-                        physicsSimulator.impassables,
-                        physicsSimulator.dashMode,
-                        physicsSimulator.endX),
+                    painter: GamePainter(physicsSimulator.impassables,
+                        physicsSimulator.dashMode, physicsSimulator.endX),
                     size: Size(constraints.biggest.width, 400),
                   ),
                 );
@@ -276,15 +285,12 @@ class _GameWidgetState extends State<GameWidget> {
   }
 
   void didUpdateWidget(GameWidget oldWidget) {
-    double oldXVel = physicsSimulator.xVel;
-    double oldYVel = physicsSimulator.yVel;
-    double oldY = physicsSimulator.playerY;
     super.didUpdateWidget(oldWidget);
-    physicsSimulator.dispose();
-    setupPhysics();
-    physicsSimulator.xVel = oldXVel;
-    physicsSimulator.yVel = oldYVel;
-    physicsSimulator.playerY = oldY;
+    setupPhysics(true);
+  }
+
+  void tick(Duration arg) {
+    physicsSimulator.tick(arg);
   }
 }
 
@@ -298,46 +304,43 @@ class GamePainter extends CustomPainter {
               fontSize: 20)))
     ..textDirection = TextDirection.ltr
     ..layout();
-  final double playerX;
-  final double playerY;
   final List<Impassable> impassables;
 
   final bool isDash;
 
   final double endX;
 
-  GamePainter(
-      this.playerX, this.playerY, this.impassables, this.isDash, this.endX);
+  GamePainter(this.impassables, this.isDash, this.endX);
   @override
   void paint(Canvas canvas, Size size) {
-    for (double x = endX - (playerX - size.width / 2);
-        x < endX - (playerX - size.width / 2) + 20;
-        x++) {
-      canvas.drawLine(
-        Offset(
-            x,
-            playerX + 20 > x + (playerX - size.width / 2)
-                ? size.height - playerY
-                : 0),
-        Offset(x, size.height),
-        Paint()..color = Colors.green,
-      );
-    }
-    canvas.drawRect(
-        Offset(size.width / 2, ((size.height) - playerY) - 20) &
-            Size.square(20),
-        Paint()..color = Colors.yellow);
-    canvas.drawRect(
-        Rect.fromLTRB(
-            size.width / 2, 0, size.width / 2 + 20, size.height - playerY),
-        Paint()..color = Colors.black.withAlpha(20));
+    double x = endX -
+        (impassables.whereType<Player>().first.topLeft.dx - size.width / 2) +
+        10;
+    canvas.drawLine(
+      Offset(x, 0),
+      Offset(x, size.height),
+      Paint()
+        ..color = Colors.green
+        ..strokeWidth = 20,
+    );
     if (isDash)
       dash.paint(
-          canvas, Offset(size.width / 2, ((size.height) - playerY) - 20));
+          canvas,
+          Offset(
+              size.width / 2,
+              ((size.height) -
+                      impassables.whereType<Player>().first.topLeft.dy) -
+                  20));
     for (double i = -1; i < size.width / 10; i++) {
-      canvas.drawCircle(Offset(i * 10 - playerX % 10, size.height), 1,
+      canvas.drawCircle(
+          Offset(i * 10 - impassables.whereType<Player>().first.topLeft.dx % 10,
+              size.height),
+          1,
           Paint()..color = Colors.black);
-      canvas.drawRect(Offset(i * 10 - playerX % 10, 0) & Size(1, 1),
+      canvas.drawRect(
+          Offset(i * 10 - impassables.whereType<Player>().first.topLeft.dx % 10,
+                  0) &
+              Size(1, 1),
           Paint()..color = Color(0xFF202020));
     }
     for (Impassable impassable in impassables) {
@@ -357,15 +360,22 @@ class GamePainter extends CustomPainter {
           break;
         case MovingPlatform:
           color = Colors.brown;
+          break;
+        case Player:
+          color = Colors.yellow;
       }
       canvas.drawRect(
         Rect.fromLTRB(
-          impassable.topLeft.dx - (playerX - size.width / 2),
+          impassable.topLeft.dx -
+              (impassables.whereType<Player>().first.topLeft.dx -
+                  size.width / 2),
           (size.height) - (impassable.topLeft.dy),
-          impassable.bottomRight.dx - (playerX - size.width / 2),
+          impassable.bottomRight.dx -
+              (impassables.whereType<Player>().first.topLeft.dx -
+                  size.width / 2),
           (size.height) - (impassable.bottomRight.dy),
         ),
-        Paint()..color = color!.withOpacity(0.3),
+        Paint()..color = color!,
       );
     }
   }
