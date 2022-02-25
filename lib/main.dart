@@ -213,7 +213,7 @@ class _GameWidgetState extends State<GameWidget> {
     }, widget.impassables, widget.endX);
     physicsSimulator.addListener(() {
       setState(() {
-        // equivelant to just calling markNeedsBuild
+        // equivalent to just calling markNeedsBuild
       });
     });
     physicsSimulator.initState();
