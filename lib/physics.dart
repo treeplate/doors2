@@ -57,6 +57,8 @@ class PhysicsSimulator extends ChangeNotifier {
   static const double kVelStep = .1;
 
   bool keyCheck = false;
+
+  int ticks = 0;
   bool get dashMode => false;
   static const double friction = 0.01;
 
@@ -109,28 +111,18 @@ class PhysicsSimulator extends ChangeNotifier {
 
   final double endX;
   Duration? duration1;
-  Duration? duration2;
-  Duration? duration3;
   late Duration tickTime;
   void tick(Duration arg) {
-    if (duration1 != null &&
-        duration2 != null &&
-        duration3 != null &&
-        arg - duration1! != duration2) {
-      print('skipped a frame');
-    }
-    if (duration1 == null) {
+    ticks++;
+    if (duration1 == null && levelData.length > 1) {
       levelData.last.startTime = arg;
     }
     tickTime = arg;
-    duration2 =
-        duration1 != null && duration3 != null ? duration1! - duration3! : null;
-    duration3 = duration1;
     duration1 = arg;
     for (Button button in impassables.whereType<Button>()) {
       (impassables[button.door] as Door).open = false;
     }
-    for (Player player in impassables.whereType<Player>()) {
+    for (Player player in impassables.whereType<Player>().toList()) {
       final Impassable? holding = player.holding;
       if (holding != null && !impassables.contains(holding)) {
         impassables.add(holding);
@@ -138,7 +130,10 @@ class PhysicsSimulator extends ChangeNotifier {
       holding?.topLeft -= Offset(0, 1);
       holding?.bottomRight -= Offset(0, 1);
       updateHoldingPos(player);
+      holding?.topLeft += Offset(0, 1);
+      holding?.bottomRight += Offset(0, 1);
       if (player.topLeft.dx >= endX) {
+        levelData.last.time = arg - levelData.last.startTime;
         nextLevel();
         return;
       }
@@ -203,7 +198,7 @@ class PhysicsSimulator extends ChangeNotifier {
     if (platform is Player) {
       updateHoldingPos(platform);
       if (platform.holding != null && colliding(platform.holding!.rect)) {
-        pushing.add(platform.holding!);
+        //pushing.add(platform.holding!);
       }
     }
     bool reverting = false;
@@ -221,7 +216,7 @@ class PhysicsSimulator extends ChangeNotifier {
             updateHoldingPos(oldCollided);
             if ((oldCollided).holding != null &&
                 colliding((oldCollided).holding!.rect)) {
-              pushing.add((oldCollided).holding!);
+              //pushing.add((oldCollided).holding!);
             }
           }
           pushing.add(oldCollided);
@@ -250,10 +245,19 @@ class PhysicsSimulator extends ChangeNotifier {
   LogicalKeyboardKey? r;
   LogicalKeyboardKey? l;
   void updateHoldingPos(Player player) {
-    player.holding?.bottomRight = player.bottomRight +
+    if (player.holding == null) {
+      return;
+    }
+    Offset otl = player.holding!.topLeft;
+    Offset obr = player.holding!.bottomRight;
+    player.holding!.bottomRight = player.bottomRight +
         Offset(player.holding!.rect.width + 2, player.holding!.rect.height + 0);
-    player.holding?.topLeft = player.bottomRight + Offset(2, 0);
-    player.holding?.moveDir = Offset.zero;
+    player.holding!.topLeft = player.bottomRight + Offset(2, 0);
+    player.holding!.moveDir = Offset.zero;
+    if (colliding(player.holding!.rect)) {
+      player.holding!.topLeft = otl;
+      player.holding!.bottomRight = obr;
+    }
   }
 
   void dispose() {
@@ -263,7 +267,9 @@ class PhysicsSimulator extends ChangeNotifier {
   void handleKeyPress(RawKeyEvent event) {
     if (!stopwatch.isRunning) {
       stopwatch.start();
+      levelData.last.startTime = tickTime;
     }
+
     for (Player player in impassables.whereType()) {
       if (event is RawKeyUpEvent && !keyCheck) {
         if (event.logicalKey == player.jumpKeybind) player.jumped = false;
@@ -309,7 +315,7 @@ class PhysicsSimulator extends ChangeNotifier {
         } else if (event.logicalKey == player.leftKeybind) {
           player.moveDir = Offset(-2, player.moveDir.dy);
         } else if (event.logicalKey == player.jumpKeybind && !player.jumped) {
-          jump(15, player);
+          jump(16, player);
           player.jumped = true;
         } else if (event.logicalKey == player.takeKeybind) {
           handleTake(player);
