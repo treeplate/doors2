@@ -1,4 +1,4 @@
-import 'dart:ui' show Offset, Rect, Size;
+import 'dart:ui' show Offset, Rect;
 
 import 'package:flutter/services.dart'
     show LogicalKeyboardKey, RawKeyDownEvent, RawKeyUpEvent, RawKeyEvent;
@@ -40,6 +40,7 @@ class LevelData {
   Duration? time;
 
   late final String winner;
+  bool sti = false;
   LevelData();
   String toString() {
     return '(TIME: ${time == null ? 'TBD' : secondsMilliseconds(time!)}, WINNER $winner)';
@@ -61,6 +62,8 @@ class PhysicsSimulator extends ChangeNotifier {
   static const double kVelStep = .1;
 
   bool keyCheck = false;
+
+  int ticks = 0;
   bool get dashMode => false;
   static const double friction = 0.01;
 
@@ -113,29 +116,14 @@ class PhysicsSimulator extends ChangeNotifier {
 
   final double endX;
   Duration? duration1;
-  Duration? duration2;
-  Duration? duration3;
   late Duration tickTime;
   void tick(Duration arg) {
-    //arg = roundedDuration(arg);
-    if (duration1 != null &&
-        duration2 != null &&
-        duration3 != null &&
-        roundedDuration(arg - duration1!) != duration2) {
-      print(
-          'skipped a frame $arg - $duration1 != $duration2 ( == ${(arg - duration1!)})');
-    } else if (duration1 != null && duration2 != null && duration3 != null) {
-      //print(
-      //    'perfect frame $arg - $duration1 == $duration2 ( == ${(arg - duration1!)})');
-    }
+    ticks++;
     if (duration1 == null && levelData.length > 1) {
       levelData.last.startTime = arg;
+      levelData.last.sti = true;
     }
     tickTime = arg;
-    duration2 = duration1 != null && duration3 != null
-        ? roundedDuration(duration1! - duration3!)
-        : null;
-    duration3 = duration1;
     duration1 = arg;
     for (Button button in impassables.whereType<Button>()) {
       (impassables[button.door] as Door).open = false;
@@ -146,6 +134,8 @@ class PhysicsSimulator extends ChangeNotifier {
         impassables.add(holding);
       }
       updateHoldingPos(player);
+      holding?.topLeft += Offset(0, 1);
+      holding?.bottomRight += Offset(0, 1);
       if (player.topLeft.dx >= endX) {
         levelData.last.time = tickTime - levelData.last.startTime;
         levelData.last.winner =
@@ -216,7 +206,7 @@ class PhysicsSimulator extends ChangeNotifier {
     if (platform is Player) {
       updateHoldingPos(platform);
       if (platform.holding != null && colliding(platform.holding!.rect)) {
-        pushing.add(platform.holding!);
+        //pushing.add(platform.holding!);
       }
     }
     bool reverting = false;
@@ -234,7 +224,7 @@ class PhysicsSimulator extends ChangeNotifier {
             updateHoldingPos(oldCollided);
             if ((oldCollided).holding != null &&
                 colliding((oldCollided).holding!.rect)) {
-              pushing.add((oldCollided).holding!);
+              //pushing.add((oldCollided).holding!);
             }
           }
           pushing.add(oldCollided);
@@ -262,16 +252,18 @@ class PhysicsSimulator extends ChangeNotifier {
   LogicalKeyboardKey? r;
   LogicalKeyboardKey? l;
   void updateHoldingPos(PC player) {
-    player.holding?.moveDir = Offset.zero;
-    Offset? oldBR = player.holding?.bottomRight;
-    Offset? oldTL = player.holding?.topLeft;
-
-    player.holding?.bottomRight = player.bottomRight +
+    if (player.holding == null) {
+      return;
+    }
+    Offset otl = player.holding!.topLeft;
+    Offset obr = player.holding!.bottomRight;
+    player.holding!.bottomRight = player.bottomRight +
         Offset(player.holding!.rect.width + 2, player.holding!.rect.height + 0);
-    player.holding?.topLeft = player.bottomRight + Offset(2, 0);
-    if (colliding(player.holding?.rect ?? Offset.zero & Size(0, 0))) {
-      player.holding!.topLeft = oldTL!;
-      player.holding!.bottomRight = oldBR!;
+    player.holding!.topLeft = player.bottomRight + Offset(2, 0);
+    player.holding!.moveDir = Offset.zero;
+    if (colliding(player.holding!.rect)) {
+      player.holding!.topLeft = otl;
+      player.holding!.bottomRight = obr;
     }
   }
 
@@ -283,8 +275,10 @@ class PhysicsSimulator extends ChangeNotifier {
     //print(event);
     if (!stopwatch.isRunning) {
       stopwatch.start();
-      levelData.first.startTime = tickTime;
+      levelData.last.startTime = tickTime;
+      levelData.last.sti = true;
     }
+
     for (Player player in impassables.whereType()) {
       if (event is RawKeyUpEvent && !keyCheck) {
         if (event.logicalKey == player.jumpKeybind) player.jumped = false;
@@ -333,7 +327,7 @@ class PhysicsSimulator extends ChangeNotifier {
         } else if (event.logicalKey == player.leftKeybind) {
           player.moveDir = Offset(-2, player.moveDir.dy);
         } else if (event.logicalKey == player.jumpKeybind && !player.jumped) {
-          jump(20, player);
+          jump(16, player);
           player.jumped = true;
         } else if (event.logicalKey == player.takeKeybind) {
           handleTake(player);

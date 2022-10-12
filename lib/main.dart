@@ -7,6 +7,8 @@ void main() {
   runApp(MyApp());
 }
 
+Duration stopwatchElapsed = Duration.zero;
+
 class TitleScreen extends StatelessWidget {
   final void Function() startGame;
 
@@ -130,7 +132,7 @@ class _MyAppState extends State<MyApp> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Text(
-                              "You have won the game in ${stopwatch.elapsed.inSeconds}.${((stopwatch.elapsedMilliseconds - stopwatch.elapsed.inSeconds * 1000)).toString().padLeft(3, '0')} seconds (${stopwatch.elapsed})",
+                              "You have won the game in ${stopwatchElapsed.inSeconds}.${((stopwatchElapsed.inMilliseconds - stopwatchElapsed.inSeconds * 1000)).toString().padLeft(3, '0')} seconds (${stopwatchElapsed})",
                               style: TextStyle(color: Colors.brown),
                             ),
                             Text(
@@ -213,7 +215,7 @@ class _GameWidgetState extends State<GameWidget>
     }, widget.impassables, widget.endX);
     physicsSimulator.addListener(() {
       setState(() {
-        // equivelant to just calling markNeedsBuild
+        // equivalent to just calling markNeedsBuild
       });
     });
     if (physicsSimExists) {
@@ -294,7 +296,11 @@ class _GameWidgetState extends State<GameWidget>
   }
 
   void tick(Duration arg) {
-    physicsSimulator.tick(arg);
+    physicsSimulator
+        .tick(Duration(milliseconds: (physicsSimulator.ticks * (1000 ~/ 60))));
+    if (levelData.last.sti) {
+      stopwatchElapsed = stopwatchElapsed + Duration(milliseconds: 1000 ~/ 60);
+    }
   }
 }
 
