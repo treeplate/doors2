@@ -39,6 +39,7 @@ List<LevelData> levelData = [LevelData()];
 class LevelData {
   late final Duration startTime;
   Duration? time;
+  bool sti = false;
   LevelData();
   String toString() {
     return '(TIME: ${time == null ? 'TBD' : secondsMilliseconds(time!)})';
@@ -116,6 +117,7 @@ class PhysicsSimulator extends ChangeNotifier {
     ticks++;
     if (duration1 == null && levelData.length > 1) {
       levelData.last.startTime = arg;
+      levelData.last.sti = true;
     }
     tickTime = arg;
     duration1 = arg;
@@ -268,6 +270,7 @@ class PhysicsSimulator extends ChangeNotifier {
     if (!stopwatch.isRunning) {
       stopwatch.start();
       levelData.last.startTime = tickTime;
+      levelData.last.sti = true;
     }
 
     for (Player player in impassables.whereType()) {

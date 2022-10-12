@@ -298,7 +298,9 @@ class _GameWidgetState extends State<GameWidget>
   void tick(Duration arg) {
     physicsSimulator
         .tick(Duration(milliseconds: (physicsSimulator.ticks * (1000 ~/ 60))));
-    stopwatchElapsed = stopwatchElapsed + Duration(milliseconds: 1000 ~/ 60);
+    if (levelData.last.sti) {
+      stopwatchElapsed = stopwatchElapsed + Duration(milliseconds: 1000 ~/ 60);
+    }
   }
 }
 
