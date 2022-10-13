@@ -309,6 +309,9 @@ class PhysicsSimulator extends ChangeNotifier {
             return;
           }
         }
+        if (event.logicalKey == LogicalKeyboardKey.keyR) {
+          reset();
+        }
         if (event.logicalKey == LogicalKeyboardKey.add) {
           keyCheck = true;
           print('beep boop');

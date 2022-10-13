@@ -212,9 +212,13 @@ class _GameWidgetState extends State<GameWidget>
     if (physicsSimExists) {
       physicsSimulator.dispose();
     }
-    physicsSimulator = PhysicsSimulator(() {
-      widget.toEnd();
-    }, widget.impassables, widget.endX);
+    physicsSimulator = PhysicsSimulator(
+      () {
+        widget.toEnd();
+      },
+      widget.impassables,
+      widget.endX,
+    );
     physicsSimulator.addListener(() {
       setState(() {
         // equivalent to just calling markNeedsBuild
@@ -295,11 +299,16 @@ class _GameWidgetState extends State<GameWidget>
     setupPhysics(true);
   }
 
+  Duration pArg = Duration.zero;
   void tick(Duration arg) {
-    physicsSimulator
-        .tick(Duration(milliseconds: (physicsSimulator.ticks * (1000 ~/ 60))));
-    if (levelData.last.sti) {
-      stopwatchElapsed = stopwatchElapsed + Duration(milliseconds: 1000 ~/ 60);
+    if (arg - pArg >= Duration(milliseconds: 16)) {
+      physicsSimulator.tick(
+          Duration(milliseconds: (physicsSimulator.ticks * (1000 ~/ 60))));
+      if (levelData.last.sti) {
+        stopwatchElapsed =
+            stopwatchElapsed + Duration(milliseconds: 1000 ~/ 60);
+      }
+      pArg = arg;
     }
   }
 }
