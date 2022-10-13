@@ -322,6 +322,9 @@ class PhysicsSimulator extends ChangeNotifier {
           keyCheck = true;
           print('beep boop');
         }
+        if (event.logicalKey == LogicalKeyboardKey.keyR) {
+          reset();
+        }
         if (event.logicalKey == player.rightKeybind) {
           player.moveDir = Offset(2, player.moveDir.dy);
         } else if (event.logicalKey == player.leftKeybind) {
