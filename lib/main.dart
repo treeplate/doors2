@@ -10,7 +10,7 @@ void main() {
 Duration stopwatchElapsed = Duration.zero;
 
 class TitleScreen extends StatelessWidget {
-  final VoidCallback startGame;
+  final void Function() startGame;
 
   TitleScreen(this.startGame, {Key? key}) : super(key: key);
   @override
@@ -183,7 +183,7 @@ class GameWidget extends StatefulWidget {
       this.auto = false})
       : super(key: key);
 
-  final VoidCallback toEnd;
+  final void Function() toEnd;
   final String title;
   final double sXVel;
 
@@ -196,14 +196,12 @@ class GameWidget extends StatefulWidget {
 class _GameWidgetState extends State<GameWidget>
     with SingleTickerProviderStateMixin {
   late PhysicsSimulator physicsSimulator;
-  late final Ticker t;
-
+  late final Ticker ticker;
   @override
   void initState() {
     super.initState();
     setupPhysics(false);
-    t = createTicker(tick);
-    t.start();
+    ticker = createTicker(tick)..start();
   }
 
   void setupPhysics(bool physicsSimExists) {
@@ -226,7 +224,7 @@ class _GameWidgetState extends State<GameWidget>
     });
     if (physicsSimExists) {
       double i = 0;
-      for (Player player in oldPlayers!) {
+      for (PC player in oldPlayers!) {
         player.topLeft = Offset(i, player.topLeft.dy);
         player.bottomRight = Offset(i + 20, player.bottomRight.dy);
         physicsSimulator.impassables.add(player);
@@ -284,7 +282,7 @@ class _GameWidgetState extends State<GameWidget>
   }
 
   void dispose() {
-    t.dispose();
+    ticker.dispose();
     physicsSimulator.dispose();
     super.dispose();
   }
@@ -296,7 +294,9 @@ class _GameWidgetState extends State<GameWidget>
 
   void didUpdateWidget(GameWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
-    setupPhysics(true);
+    if (oldWidget.impassables != widget.impassables) {
+      setupPhysics(true);
+    }
   }
 
   Duration pArg = Duration.zero;
@@ -333,7 +333,7 @@ class GamePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     double x = endX -
-        (impassables.whereType<Player>().first.topLeft.dx - size.width / 2) +
+        (impassables.whereType<PC>().first.topLeft.dx - size.width / 2) +
         10;
     canvas.drawLine(
       Offset(x, 0),
@@ -347,17 +347,16 @@ class GamePainter extends CustomPainter {
           canvas,
           Offset(
               size.width / 2,
-              ((size.height) -
-                      impassables.whereType<Player>().first.topLeft.dy) -
+              ((size.height) - impassables.whereType<PC>().first.topLeft.dy) -
                   20));
     for (double i = -1; i < size.width / 10; i++) {
       canvas.drawCircle(
-          Offset(i * 10 - impassables.whereType<Player>().first.topLeft.dx % 10,
+          Offset(i * 10 - impassables.whereType<PC>().first.topLeft.dx % 10,
               size.height),
           1,
           Paint()..color = Colors.black);
       canvas.drawRect(
-          Offset(i * 10 - impassables.whereType<Player>().first.topLeft.dx % 10,
+          Offset(i * 10 - impassables.whereType<PC>().first.topLeft.dx % 10,
                   0) &
               Size(1, 1),
           Paint()..color = Color(0xFF202020));
@@ -386,12 +385,10 @@ class GamePainter extends CustomPainter {
       canvas.drawRect(
         Rect.fromLTRB(
           impassable.topLeft.dx -
-              (impassables.whereType<Player>().first.topLeft.dx -
-                  size.width / 2),
+              (impassables.whereType<PC>().first.topLeft.dx - size.width / 2),
           (size.height) - (impassable.topLeft.dy),
           impassable.bottomRight.dx -
-              (impassables.whereType<Player>().first.topLeft.dx -
-                  size.width / 2),
+              (impassables.whereType<PC>().first.topLeft.dx - size.width / 2),
           (size.height) - (impassable.bottomRight.dy),
         ),
         Paint()..color = color!,
