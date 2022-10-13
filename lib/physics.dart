@@ -39,7 +39,7 @@ class LevelData {
   late final Duration startTime;
   Duration? time;
 
-  late final String winner;
+  late String winner;
   bool sti = false;
   LevelData();
   String toString() {
@@ -69,7 +69,7 @@ class PhysicsSimulator extends ChangeNotifier {
 
   PhysicsSimulator(this.nextLevel, this.impassables, this.endX) {}
 
-  final void Function() nextLevel;
+  final void Function(int) nextLevel;
   bool validTakeable(Impassable? obj) {
     return obj?.pushable ?? false;
   }
@@ -134,13 +134,16 @@ class PhysicsSimulator extends ChangeNotifier {
         impassables.add(holding);
       }
       updateHoldingPos(player);
-      holding?.topLeft += Offset(0, 1);
-      holding?.bottomRight += Offset(0, 1);
       if (player.topLeft.dx >= endX) {
         levelData.last.time = tickTime - levelData.last.startTime;
         levelData.last.winner =
             player.runtimeType.toString() + player.jumpKeybind.keyLabel;
-        nextLevel();
+        nextLevel(1);
+        return;
+      }
+      if (player.topLeft.dx <= -endX) {
+        levelData.removeLast();
+        nextLevel(-1);
         return;
       }
       player.bottomRight -= Offset(0, 1);
@@ -177,9 +180,11 @@ class PhysicsSimulator extends ChangeNotifier {
       }
       for (double i = 0; i < platform.moveDir.dx.abs(); i += kVelStep) {
         double speed = (platform.moveDir.dx < 0 ? -1 : 1) * kVelStep;
+        assert(!colliding(platform.rect));
         platform.topLeft += Offset(speed, 0);
         platform.bottomRight += Offset(speed, 0);
         updateCollision(platform, speed, 0);
+        assert(!colliding(platform.rect));
       }
       for (double i = 0; i < platform.moveDir.dy.abs(); i += kVelStep) {
         double speed = (platform.moveDir.dy < 0 ? -1 : 1) * kVelStep;
@@ -203,47 +208,35 @@ class PhysicsSimulator extends ChangeNotifier {
       {bool untick = false}) {
     assert(sX != 0.0 || sY != 0.0);
     Set<Impassable> pushing = {platform};
-    if (platform is Player) {
-      updateHoldingPos(platform);
-      if (platform.holding != null && colliding(platform.holding!.rect)) {
-        //pushing.add(platform.holding!);
-      }
-    }
-    bool reverting = false;
-    while (!reverting) {
-      if (pushing.any((element) => colliding(element.rect))) {
-        if (collided == null || !collided!.pushable) reverting = true;
+    outer:
+    while (true) {
+      for (Impassable element in pushing) {
+        if (!colliding(element.rect)) {
+          continue;
+        }
+        if (collided == null || !collided!.pushable) {
+          for (Impassable? thing in pushing) {
+            if (thing is! Door || !untick) {
+              thing?.topLeft -= Offset(sX, sY);
+              thing?.bottomRight -= Offset(sX, sY);
+            }
+            thing?.moveDir = Offset(
+                sX == 0 || thing is PC ? thing.moveDir.dx : 0,
+                sY == 0 ? thing.moveDir.dy : 0);
+          }
+          if (untick) platform.unTick();
+          return;
+        }
         if (collided is Button) {
           (impassables[(collided as Button).door] as Door).open = true;
         }
-        collided?.topLeft += Offset(sX, sY);
-        collided?.bottomRight += Offset(sX, sY);
-        if (collided != null) {
-          Impassable oldCollided = collided!;
-          if (oldCollided is PC) {
-            updateHoldingPos(oldCollided);
-            if ((oldCollided).holding != null &&
-                colliding((oldCollided).holding!.rect)) {
-              //pushing.add((oldCollided).holding!);
-            }
-          }
-          pushing.add(oldCollided);
-        }
-      } else {
-        break;
+        assert(!pushing.contains(collided));
+        collided!.topLeft += Offset(sX, sY);
+        collided!.bottomRight += Offset(sX, sY);
+        pushing.add(collided!);
+        continue outer;
       }
-      if (reverting) {
-        for (Impassable? thing in pushing) {
-          if (thing is! Door || !untick) {
-            thing?.topLeft -= Offset(sX, sY);
-            thing?.bottomRight -= Offset(sX, sY);
-          }
-          thing?.moveDir = Offset(sX == 0 || thing is PC ? thing.moveDir.dx : 0,
-              sY == 0 ? thing.moveDir.dy : 0);
-        }
-        if (untick) platform.unTick();
-        break;
-      }
+      break;
     }
   }
 
@@ -397,6 +390,10 @@ class PhysicsSimulator extends ChangeNotifier {
     }
     player.topLeft += Offset(10, 0);
     player.bottomRight += Offset(10, 0);
+  }
+
+  String toString() {
+    return 'I am a P-S';
   }
 }
 

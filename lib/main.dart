@@ -17,10 +17,18 @@ class TitleScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return GameWidget(
       title: "Wooden Doors 2",
-      toEnd: () {
+      nextLevel: (i) {
+        if (i != 1) {
+          assert(i == -1);
+          return;
+        }
         startGame();
       },
-      impassables: [Button(Offset(60, 50), 1), Door(Offset(100, 80))],
+      impassables: [
+        Box(Offset(60, 90)),
+        Button(Offset(60, 50), 2),
+        Door(Offset(100, 80))
+      ],
       sXVel: 1,
       endX: 120,
       auto: true,
@@ -152,9 +160,17 @@ class _MyAppState extends State<MyApp> {
                   title:
                       '${texts[level]} (previous level ${level == 0 ? 'N/A' : '${levelData[level - 1]}'})',
                   endX: goals[level],
-                  toEnd: () {
+                  nextLevel: (i) {
                     setState(() {
-                      level++;
+                      level += i;
+                      if (level < 0) {
+                        level = 0;
+                        levelData.add(LevelData());
+                        return;
+                      }
+                      if (i.isNegative) {
+                        return;
+                      }
                       if (level < levels.length) levelData.add(LevelData());
                       if (level >= levels.length) {
                         stopwatch.stop();
@@ -176,14 +192,14 @@ class GameWidget extends StatefulWidget {
   GameWidget(
       {Key? key,
       required this.title,
-      required this.toEnd,
+      required this.nextLevel,
       required this.impassables,
       required this.endX,
       this.sXVel = 0,
       this.auto = false})
       : super(key: key);
 
-  final void Function() toEnd;
+  final void Function(int) nextLevel;
   final String title;
   final double sXVel;
 
@@ -211,8 +227,8 @@ class _GameWidgetState extends State<GameWidget>
       physicsSimulator.dispose();
     }
     physicsSimulator = PhysicsSimulator(
-      () {
-        widget.toEnd();
+      (i) {
+        widget.nextLevel(i);
       },
       widget.impassables,
       widget.endX,
@@ -335,11 +351,22 @@ class GamePainter extends CustomPainter {
     double x = endX -
         (impassables.whereType<PC>().first.topLeft.dx - size.width / 2) +
         10;
+
+    double x2 = -endX -
+        (impassables.whereType<PC>().first.topLeft.dx - size.width / 2) +
+        10;
     canvas.drawLine(
       Offset(x, 0),
       Offset(x, size.height),
       Paint()
         ..color = Colors.green
+        ..strokeWidth = 20,
+    );
+    canvas.drawLine(
+      Offset(x2, 0),
+      Offset(x2, size.height),
+      Paint()
+        ..color = Colors.red
         ..strokeWidth = 20,
     );
     if (isDash)
