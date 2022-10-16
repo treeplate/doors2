@@ -91,6 +91,19 @@ class _MyAppState extends State<MyApp> {
       MovingPlatform(
           Offset(20, 20), Offset(50, 0), Offset(20, 270), Offset(0, 1)),
     ],
+    [
+      Impassable(Offset(80, 400), Offset(90, 261), Offset.zero),
+      Impassable(Offset(50, 250), Offset(100, 240), Offset.zero),
+      Impassable(Offset(220, 240), Offset(230, 50), Offset.zero),
+      Impassable(Offset(80, 310), Offset(230, 300), Offset.zero),
+      Door(Offset(230, 71)),
+      Box(Offset(60, 260)),
+      Button(Offset(100, 250), 4),
+      MovingPlatform(
+          Offset(20, 20), Offset(50, 0), Offset(20, 270), Offset(0, 1)),
+      Impassable(Offset(140, 250), Offset(230, 240), Offset.zero),
+      Impassable(Offset(130, 400), Offset(140, 240), Offset.zero),
+    ],
   ];
 
   final List<Rect> playerWrap = [Rect.fromLTRB(0, 0, 0, 0)];
@@ -101,7 +114,8 @@ class _MyAppState extends State<MyApp> {
     "If you put a box on a button, the corresponding door opens.",
     "More boxes, more buttons.",
     "The platform will bring you up.",
-    "",
+    "Challenge level!",
+    "Slide the box under",
   ];
   int level = 0;
 
@@ -113,7 +127,7 @@ class _MyAppState extends State<MyApp> {
     230,
     230,
     230,
-    230,
+    270,
   ];
   @override
   Widget build(BuildContext context) {
@@ -243,7 +257,9 @@ class _GameWidgetState extends State<GameWidget>
       for (PC player in oldPlayers!) {
         player.topLeft = Offset(i, player.topLeft.dy);
         player.bottomRight = Offset(i + 20, player.bottomRight.dy);
-        physicsSimulator.impassables.add(player);
+        if (!physicsSimulator.impassables.contains(player)) {
+          physicsSimulator.impassables.add(player);
+        }
         if (physicsSimulator.colliding(player.rect)) {
           player.topLeft = Offset(i, 400);
           player.bottomRight = Offset(i + 20, 380);
@@ -369,13 +385,6 @@ class GamePainter extends CustomPainter {
         ..color = Colors.red
         ..strokeWidth = 20,
     );
-    if (isDash)
-      dash.paint(
-          canvas,
-          Offset(
-              size.width / 2,
-              ((size.height) - impassables.whereType<PC>().first.topLeft.dy) -
-                  20));
     for (double i = -1; i < size.width / 10; i++) {
       canvas.drawCircle(
           Offset(i * 10 - impassables.whereType<PC>().first.topLeft.dx % 10,
@@ -421,6 +430,11 @@ class GamePainter extends CustomPainter {
         Paint()..color = color!,
       );
     }
+    if (isDash)
+      dash.paint(
+          canvas,
+          Offset(size.width / 2,
+              ((size.height) - impassables.whereType<PC>().first.topLeft.dy)));
   }
 
   @override

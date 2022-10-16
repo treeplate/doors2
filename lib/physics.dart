@@ -423,17 +423,13 @@ class Impassable {
   }
 }
 
-class Door extends PC {
+class Door extends Impassable {
   Door(Offset topLeft, {this.open = false})
       : t = open ? 0 : 1,
         super(
           topLeft,
           topLeft + Offset(10, -50),
           Offset.zero,
-          LogicalKeyboardKey.keyW,
-          LogicalKeyboardKey.keyE,
-          LogicalKeyboardKey.keyD,
-          LogicalKeyboardKey.keyA,
         );
   bool open = false;
   double t = 1;
@@ -476,16 +472,13 @@ class Button extends Impassable {
   String toString() => "<Button>";
 }
 
-class Box extends PC {
+class Box extends Impassable {
   Box(Offset topLeft)
       : super(
-            topLeft,
-            topLeft + Offset(10, -10),
-            Offset.zero,
-            LogicalKeyboardKey.keyW,
-            LogicalKeyboardKey.keyE,
-            LogicalKeyboardKey.keyD,
-            LogicalKeyboardKey.keyA);
+          topLeft,
+          topLeft + Offset(10, -10),
+          Offset.zero,
+        );
   bool get pushable => true;
 }
 
