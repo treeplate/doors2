@@ -1,7 +1,8 @@
 import 'dart:ui' show Offset, Rect;
 
+import 'package:flutter/material.dart' show Colors;
 import 'package:flutter/services.dart'
-    show LogicalKeyboardKey, RawKeyDownEvent, RawKeyUpEvent, RawKeyEvent;
+    show Color, LogicalKeyboardKey, RawKeyDownEvent, RawKeyEvent, RawKeyUpEvent;
 import 'package:flutter/widgets.dart' show ChangeNotifier, mustCallSuper;
 
 final Stopwatch stopwatch = Stopwatch();
@@ -398,13 +399,15 @@ class PhysicsSimulator extends ChangeNotifier {
 }
 
 class Impassable {
-  Impassable(this.topLeft, this.bottomRight, this.moveDir)
+  Impassable(this.topLeft, this.bottomRight, this.moveDir,
+      [this.color = Colors.brown])
       : oldTopLeft = topLeft,
         oldBottomRight = bottomRight;
   Offset topLeft;
   Offset bottomRight;
   final Offset oldTopLeft;
   final Offset oldBottomRight;
+  final Color color;
 
   bool get pushable => false;
   Rect get rect => Rect.fromPoints(topLeft, bottomRight);
@@ -426,11 +429,7 @@ class Impassable {
 class Door extends Impassable {
   Door(Offset topLeft, {this.open = false})
       : t = open ? 0 : 1,
-        super(
-          topLeft,
-          topLeft + Offset(10, -50),
-          Offset.zero,
-        );
+        super(topLeft, topLeft + Offset(10, -50), Offset.zero, Colors.teal);
   bool open = false;
   double t = 1;
   void reset() {
@@ -466,7 +465,7 @@ class Door extends Impassable {
 
 class Button extends Impassable {
   Button(Offset topLeft, this.door)
-      : super(topLeft, topLeft + Offset(30, -20), Offset.zero);
+      : super(topLeft, topLeft + Offset(30, -20), Offset.zero, Colors.red);
 
   final int door;
   String toString() => "<Button>";
@@ -474,18 +473,20 @@ class Button extends Impassable {
 
 class Box extends Impassable {
   Box(Offset topLeft)
-      : super(
-          topLeft,
-          topLeft + Offset(10, -10),
-          Offset.zero,
-        );
+      : super(topLeft, topLeft + Offset(10, -10), Offset.zero, Colors.grey);
   bool get pushable => true;
 }
 
 abstract class PC extends Impassable {
-  PC(Offset topLeft, Offset bottomRight, Offset moveDir, this.jumpKeybind,
-      this.takeKeybind, this.rightKeybind, this.leftKeybind)
-      : super(topLeft, bottomRight, moveDir);
+  PC(
+    Offset topLeft,
+    Offset bottomRight,
+    Offset moveDir,
+    this.jumpKeybind,
+    this.takeKeybind,
+    this.rightKeybind,
+    this.leftKeybind,
+  ) : super(topLeft, bottomRight, moveDir, Colors.yellow);
   Impassable? holding;
   final LogicalKeyboardKey jumpKeybind;
   final LogicalKeyboardKey takeKeybind;
@@ -496,17 +497,11 @@ abstract class PC extends Impassable {
 
 class Player extends PC {
   Player(Offset topLeft, Offset moveDir,
-      [this.jumpKeybind = LogicalKeyboardKey.keyW,
-      this.takeKeybind = LogicalKeyboardKey.keyE,
-      this.rightKeybind = LogicalKeyboardKey.keyD,
-      this.leftKeybind = LogicalKeyboardKey.keyA])
+      [LogicalKeyboardKey jumpKeybind = LogicalKeyboardKey.keyW,
+      LogicalKeyboardKey takeKeybind = LogicalKeyboardKey.keyE,
+      LogicalKeyboardKey rightKeybind = LogicalKeyboardKey.keyD,
+      LogicalKeyboardKey leftKeybind = LogicalKeyboardKey.keyA])
       : super(topLeft, topLeft + Offset(20, -20), moveDir, jumpKeybind,
             takeKeybind, rightKeybind, leftKeybind);
-  Impassable? holding;
-  final LogicalKeyboardKey jumpKeybind;
-  final LogicalKeyboardKey takeKeybind;
-  final LogicalKeyboardKey rightKeybind;
-  final LogicalKeyboardKey leftKeybind;
-  bool jumped = false;
   bool get pushable => true;
 }

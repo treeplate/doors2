@@ -92,17 +92,15 @@ class _MyAppState extends State<MyApp> {
           Offset(20, 20), Offset(50, 0), Offset(20, 270), Offset(0, 1)),
     ],
     [
-      Impassable(Offset(80, 400), Offset(90, 261), Offset.zero),
-      Impassable(Offset(50, 250), Offset(100, 240), Offset.zero),
-      Impassable(Offset(220, 240), Offset(230, 50), Offset.zero),
-      Impassable(Offset(80, 310), Offset(230, 300), Offset.zero),
+      Impassable(Offset(80, 400), Offset(90, 261), Offset.zero, Colors.orange),
+      Impassable(Offset(50, 250), Offset(100, 240), Offset.zero, Colors.yellow),
+      Impassable(Offset(220, 240), Offset(230, 50), Offset.zero, Colors.green),
       Door(Offset(230, 71)),
-      Box(Offset(60, 260)),
-      Button(Offset(100, 250), 4),
+      Box(Offset(60, 240)),
+      Button(Offset(100, 250), 3),
       MovingPlatform(
           Offset(20, 20), Offset(50, 0), Offset(20, 270), Offset(0, 1)),
-      Impassable(Offset(140, 250), Offset(230, 240), Offset.zero),
-      Impassable(Offset(130, 400), Offset(140, 240), Offset.zero),
+      Impassable(Offset(130, 400), Offset(140, 240), Offset.zero, Colors.pink),
     ],
   ];
 
@@ -398,26 +396,7 @@ class GamePainter extends CustomPainter {
           Paint()..color = Color(0xFF202020));
     }
     for (Impassable impassable in impassables) {
-      Color? color;
-      switch (impassable.runtimeType) {
-        case Button:
-          color = Colors.red;
-          break;
-        case Impassable:
-          color = Colors.brown;
-          break;
-        case Box:
-          color = Colors.grey;
-          break;
-        case Door:
-          color = Colors.cyan;
-          break;
-        case MovingPlatform:
-          color = Colors.brown;
-          break;
-        case Player:
-          color = Colors.yellow;
-      }
+      Color color = impassable.color;
       canvas.drawRect(
         Rect.fromLTRB(
           impassable.topLeft.dx -
@@ -427,7 +406,7 @@ class GamePainter extends CustomPainter {
               (impassables.whereType<PC>().first.topLeft.dx - size.width / 2),
           (size.height) - (impassable.bottomRight.dy),
         ),
-        Paint()..color = color!,
+        Paint()..color = color,
       );
     }
     if (isDash)
