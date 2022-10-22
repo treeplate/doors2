@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
+import 'dart:math';
+
 import 'physics.dart';
 
 void main() {
@@ -10,22 +12,22 @@ void main() {
 Duration stopwatchElapsed = Duration.zero;
 
 class TitleScreen extends StatelessWidget {
-  final void Function() startGame;
+  final void Function(Impassable, bool) startGame;
 
   TitleScreen(this.startGame, {Key? key}) : super(key: key);
   @override
   Widget build(BuildContext context) {
     return GameWidget(
       title: "Wooden Doors 2",
-      nextLevel: (i) {
+      nextLevel: (i, o, ip) {
         if (i != 1) {
           assert(i == -1);
           return;
         }
-        startGame();
+        startGame(o, ip);
       },
       impassables: [
-        Box(Offset(60, 90)),
+        Box(Offset(60, 90), null),
         Button(Offset(60, 50), 2),
         Door(Offset(100, 80))
       ],
@@ -48,32 +50,44 @@ class _MyAppState extends State<MyApp> {
 
   final List<List<Impassable>> levels = [
     [
+      Box(Offset(00, 10), Colors.grey),
+      Box(Offset(10, 10), Colors.grey),
+      Box(Offset(20, 10), Colors.grey),
+      Box(Offset(30, 10), Colors.grey),
+      Box(Offset(40, 10), Colors.grey),
+      Box(Offset(50, 10), Colors.grey),
+      Box(Offset(60, 10), Colors.grey),
+      Box(Offset(70, 10), Colors.grey),
+      Box(Offset(80, 10), Colors.grey),
+      Box(Offset(90, 10), Colors.grey),
+    ],
+    [
       Impassable(Offset(200, 200), Offset(300, 100), Offset.zero),
     ],
     [
       Impassable(Offset(200, 50), Offset(300, 0), Offset.zero),
     ],
     [
-      Box(Offset(30, 10)),
+      Box(Offset(30, 10), Colors.grey),
       Impassable(Offset(50, 10), Offset(80, 0), Offset.zero),
       Impassable(Offset(210, 130), Offset(220, 0), Offset.zero),
     ],
     [
-      Box(Offset(170, 10)),
-      Button(Offset(40, 20), 4),
+      Button(Offset(40, 20), 3),
       Impassable(Offset(150, 200), Offset(180, 30), Offset.zero),
       Impassable(Offset(180, 70), Offset(210, 30), Offset.zero),
       Door(Offset(210, 80)),
+      Box(Offset(170, 10), Colors.grey),
     ],
     [
-      Box(Offset(150, 10)),
-      Box(Offset(170, 10)),
-      Button(Offset(20, 20), 6),
-      Button(Offset(60, 20), 7),
+      Button(Offset(20, 20), 4),
+      Button(Offset(60, 20), 5),
       Impassable(Offset(150, 200), Offset(180, 30), Offset.zero),
       Impassable(Offset(180, 70), Offset(210, 30), Offset.zero),
       Door(Offset(210, 80)),
       Door(Offset(220, 80)),
+      Box(Offset(150, 10), Colors.grey),
+      Box(Offset(170, 10), Colors.grey),
     ],
     [
       Impassable(Offset(210, 250), Offset(220, 0), Offset.zero),
@@ -86,26 +100,27 @@ class _MyAppState extends State<MyApp> {
       Impassable(Offset(220, 240), Offset(230, 0), Offset.zero),
       Impassable(Offset(80, 310), Offset(230, 300), Offset.zero),
       Door(Offset(70, 350)),
-      Box(Offset(60, 260)),
       Button(Offset(160, 20), 4),
       MovingPlatform(
           Offset(20, 20), Offset(50, 0), Offset(20, 270), Offset(0, 1)),
+      Box(Offset(60, 260), Colors.grey),
     ],
     [
-      Impassable(Offset(80, 400), Offset(90, 261), Offset.zero, Colors.orange),
-      Impassable(Offset(50, 250), Offset(100, 240), Offset.zero, Colors.yellow),
-      Impassable(Offset(220, 240), Offset(230, 50), Offset.zero, Colors.green),
+      Impassable(Offset(80, 400), Offset(90, 261), Offset.zero),
+      Impassable(Offset(50, 250), Offset(100, 240), Offset.zero),
+      Impassable(Offset(220, 240), Offset(230, 50), Offset.zero),
       Door(Offset(230, 71)),
-      Box(Offset(60, 240)),
       Button(Offset(100, 250), 3),
       MovingPlatform(
           Offset(20, 20), Offset(50, 0), Offset(20, 270), Offset(0, 1)),
-      Impassable(Offset(130, 400), Offset(140, 240), Offset.zero, Colors.pink),
+      Impassable(Offset(130, 400), Offset(140, 240), Offset.zero),
+      Box(Offset(60, 240), Colors.grey),
     ],
   ];
 
   final List<Rect> playerWrap = [Rect.fromLTRB(0, 0, 0, 0)];
   final List<String> texts = [
+    "You found the secret box room!",
     "D to move the yellow square right. Get to the far right.",
     "W to jump.",
     "E near a box to pick up the box, and E to drop it",
@@ -115,9 +130,10 @@ class _MyAppState extends State<MyApp> {
     "Challenge level!",
     "Slide the box under",
   ];
-  int level = 0;
+  int level = 1;
 
   List<double> goals = [
+    320,
     320,
     320,
     230,
@@ -135,9 +151,12 @@ class _MyAppState extends State<MyApp> {
         primarySwatch: Colors.blue,
       ),
       home: titleScreen
-          ? TitleScreen(() {
+          ? TitleScreen((o, ip) {
               setState(() {
-                titleScreen = false;
+                if (ip) {
+                  titleScreen = false;
+                }
+                levels[level].add(o..reset());
               });
             })
           : endScreen
@@ -172,21 +191,26 @@ class _MyAppState extends State<MyApp> {
                   title:
                       '${texts[level]} (previous level ${level == 0 ? 'N/A' : '${levelData[level - 1]}'})',
                   endX: goals[level],
-                  nextLevel: (i) {
+                  nextLevel: (i, o, ip) {
                     setState(() {
-                      level += i;
-                      if (level < 0) {
-                        level = 0;
-                        levelData.add(LevelData());
-                        return;
-                      }
-                      if (i.isNegative) {
-                        return;
-                      }
-                      if (level < levels.length) levelData.add(LevelData());
-                      if (level >= levels.length) {
-                        stopwatch.stop();
-                        endScreen = true;
+                      levels[min(levels.length - 1, max(level + i, 0))]
+                          .add(o..reset());
+                      levels[level].remove(o);
+                      if (ip) {
+                        level += i;
+                        if (level < 0) {
+                          level = 0;
+                          levelData.add(LevelData());
+                          return;
+                        }
+                        if (i.isNegative) {
+                          return;
+                        }
+                        if (level < levels.length) levelData.add(LevelData());
+                        if (level >= levels.length) {
+                          stopwatch.stop();
+                          endScreen = true;
+                        }
                       }
                     });
                   },
@@ -211,7 +235,7 @@ class GameWidget extends StatefulWidget {
       this.auto = false})
       : super(key: key);
 
-  final void Function(int) nextLevel;
+  final void Function(int, Impassable, bool) nextLevel;
   final String title;
   final double sXVel;
 
@@ -233,14 +257,12 @@ class _GameWidgetState extends State<GameWidget>
   }
 
   void setupPhysics(bool physicsSimExists) {
-    Iterable<Player>? oldPlayers;
-    if (physicsSimExists) oldPlayers = physicsSimulator.impassables.whereType();
     if (physicsSimExists) {
       physicsSimulator.dispose();
     }
     physicsSimulator = PhysicsSimulator(
-      (i) {
-        widget.nextLevel(i);
+      (i, o, isPlayer) {
+        widget.nextLevel(i, o, isPlayer);
       },
       widget.impassables,
       widget.endX,
@@ -250,21 +272,20 @@ class _GameWidgetState extends State<GameWidget>
         // equivalent to just calling markNeedsBuild
       });
     });
-    if (physicsSimExists) {
-      double i = 0;
-      for (PC player in oldPlayers!) {
-        player.topLeft = Offset(i, player.topLeft.dy);
-        player.bottomRight = Offset(i + 20, player.bottomRight.dy);
-        if (!physicsSimulator.impassables.contains(player)) {
-          physicsSimulator.impassables.add(player);
+    while (true) {
+      bool colliding = false;
+      for (Impassable i in physicsSimulator.impassables) {
+        if (physicsSimulator.colliding(i.rect)) {
+          colliding = true;
+          i.topLeft = Offset(i.topLeft.dx, i.topLeft.dy + 10);
+          i.bottomRight = Offset(i.bottomRight.dx, i.bottomRight.dy + 10);
         }
-        if (physicsSimulator.colliding(player.rect)) {
-          player.topLeft = Offset(i, 400);
-          player.bottomRight = Offset(i + 20, 380);
-        }
-        i += 40;
       }
-    } else {
+      if (!colliding) {
+        break;
+      }
+    }
+    if (!physicsSimExists) {
       physicsSimulator.impassables.add(Player(Offset(0, 400), Offset(0, 0)));
     }
   }

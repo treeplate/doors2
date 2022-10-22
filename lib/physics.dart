@@ -34,7 +34,13 @@ class MovingPlatform extends Impassable {
   }
 }
 
-List<LevelData> levelData = [LevelData()];
+List<LevelData> levelData = [
+  LevelData()
+    ..time = Duration.zero
+    ..winner = 'Nobody'
+    ..startTime = Duration.zero,
+  LevelData()
+];
 
 class LevelData {
   late final Duration startTime;
@@ -70,7 +76,7 @@ class PhysicsSimulator extends ChangeNotifier {
 
   PhysicsSimulator(this.nextLevel, this.impassables, this.endX) {}
 
-  final void Function(int) nextLevel;
+  final void Function(int, Impassable, bool) nextLevel;
   bool validTakeable(Impassable? obj) {
     return obj?.pushable ?? false;
   }
@@ -110,6 +116,22 @@ class PhysicsSimulator extends ChangeNotifier {
         obj.bottomRight = oBR;
       }
     }
+    while (true) {
+      bool colliding1 = false;
+      for (Impassable i in impassables) {
+        if (colliding(i.rect)) {
+          if (i.topLeft.dy > 400) {
+            print('>400!');
+          }
+          colliding1 = true;
+          i.topLeft = Offset(i.topLeft.dx, i.topLeft.dy + 10);
+          i.bottomRight = Offset(i.bottomRight.dx, i.bottomRight.dy + 10);
+        }
+      }
+      if (!colliding1) {
+        break;
+      }
+    }
     notifyListeners();
   }
 
@@ -120,7 +142,7 @@ class PhysicsSimulator extends ChangeNotifier {
   late Duration tickTime;
   void tick(Duration arg) {
     ticks++;
-    if (duration1 == null && levelData.length > 1) {
+    if (duration1 == null && levelData.length > 2) {
       levelData.last.startTime = arg;
       levelData.last.sti = true;
     }
@@ -130,23 +152,7 @@ class PhysicsSimulator extends ChangeNotifier {
       (impassables[button.door] as Door).open = false;
     }
     for (Player player in impassables.whereType<Player>().toList()) {
-      final Impassable? holding = player.holding;
-      if (holding != null && !impassables.contains(holding)) {
-        impassables.add(holding);
-      }
       updateHoldingPos(player);
-      if (player.topLeft.dx >= endX) {
-        levelData.last.time = tickTime - levelData.last.startTime;
-        levelData.last.winner =
-            player.runtimeType.toString() + player.jumpKeybind.keyLabel;
-        nextLevel(1);
-        return;
-      }
-      if (player.topLeft.dx <= -endX) {
-        levelData.removeLast();
-        nextLevel(-1);
-        return;
-      }
       player.bottomRight -= Offset(0, 1);
       colliding(player.rect);
       player.bottomRight += Offset(0, 1);
@@ -168,6 +174,7 @@ class PhysicsSimulator extends ChangeNotifier {
       box.moveDir += Offset(0, -1);
     }
     for (Impassable platform in impassables) {
+      platform.room = impassables;
       if (platform is! Player) {
         platform.topLeft -= Offset(0, 1);
         platform.bottomRight -= Offset(0, 1);
@@ -186,6 +193,22 @@ class PhysicsSimulator extends ChangeNotifier {
         platform.bottomRight += Offset(speed, 0);
         updateCollision(platform, speed, 0);
         assert(!colliding(platform.rect));
+      }
+      if (platform.topLeft.dx >= endX) {
+        if (platform is Player) {
+          levelData.last.time = tickTime - levelData.last.startTime;
+          levelData.last.winner =
+              platform.runtimeType.toString() + platform.jumpKeybind.keyLabel;
+        }
+        nextLevel(1, platform, platform is Player);
+        return;
+      }
+      if (platform.topLeft.dx <= -endX) {
+        if (platform is Player) {
+          levelData.removeLast();
+        }
+        nextLevel(-1, platform, platform is Player);
+        return;
       }
       for (double i = 0; i < platform.moveDir.dy.abs(); i += kVelStep) {
         double speed = (platform.moveDir.dy < 0 ? -1 : 1) * kVelStep;
@@ -267,8 +290,7 @@ class PhysicsSimulator extends ChangeNotifier {
 
   void handleKeyPress(RawKeyEvent event) {
     //print(event);
-    if (!stopwatch.isRunning) {
-      stopwatch.start();
+    if (levelData.length == 2 && levelData.last.sti == false && ticks > 0) {
       levelData.last.startTime = tickTime;
       levelData.last.sti = true;
     }
@@ -356,38 +378,12 @@ class PhysicsSimulator extends ChangeNotifier {
     player.topLeft += Offset(10, 0);
     player.bottomRight += Offset(10, 0);
     if (colliding(player.rect) && validTakeable(collided)) {
-      Offset oldTL = collided!.topLeft;
-      Offset oldBR = collided!.bottomRight;
       player.holding = collided;
-      final Impassable? holding = player.holding;
-      player.topLeft -= Offset(10, 0);
-      player.bottomRight -= Offset(10, 0);
-      updateHoldingPos(player);
-      if (colliding(holding!.rect)) {
-        holding.topLeft = oldTL;
-        holding.bottomRight = oldBR;
-        player.holding = null;
-      }
-      player.topLeft += Offset(10, 0);
-      player.bottomRight += Offset(10, 0);
     }
     player.topLeft -= Offset(20, 0);
     player.bottomRight -= Offset(20, 0);
     if (colliding(player.rect) && validTakeable(collided)) {
-      Offset oldTL = collided!.topLeft;
-      Offset oldBR = collided!.bottomRight;
       player.holding = collided;
-      final Impassable? holding = player.holding;
-      player.topLeft += Offset(10, 0);
-      player.bottomRight += Offset(10, 0);
-      updateHoldingPos(player);
-      if (colliding(holding!.rect)) {
-        holding.topLeft = oldTL;
-        holding.bottomRight = oldBR;
-        player.holding = null;
-      }
-      player.topLeft -= Offset(10, 0);
-      player.bottomRight -= Offset(10, 0);
     }
     player.topLeft += Offset(10, 0);
     player.bottomRight += Offset(10, 0);
@@ -405,6 +401,7 @@ class Impassable {
         oldBottomRight = bottomRight;
   Offset topLeft;
   Offset bottomRight;
+  List<Impassable>? room;
   final Offset oldTopLeft;
   final Offset oldBottomRight;
   final Color color;
@@ -472,8 +469,9 @@ class Button extends Impassable {
 }
 
 class Box extends Impassable {
-  Box(Offset topLeft)
-      : super(topLeft, topLeft + Offset(10, -10), Offset.zero, Colors.grey);
+  Box(Offset topLeft, Color? color)
+      : super(topLeft, topLeft + Offset(10, -10), Offset.zero,
+            color ?? Colors.grey);
   bool get pushable => true;
 }
 
