@@ -11,6 +11,14 @@ void main() {
 
 Duration stopwatchElapsed = Duration.zero;
 
+List<Impassable> imps = [
+  Box(Offset(60, 90), null),
+  Button(Offset(60, 50), 2),
+  Door(Offset(100, 80)),
+  Impassable(Offset(-110, 200), Offset(-100, 0), Offset.zero),
+  Player(Offset(0, 0), Offset(0, 0)),
+];
+
 class TitleScreen extends StatelessWidget {
   final void Function(Impassable, bool) startGame;
 
@@ -19,18 +27,14 @@ class TitleScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return GameWidget(
       title: "Wooden Doors 2",
-      nextLevel: (i, o, ip) {
+      nextLevel: (i, o, ip, time, winner) {
         if (i != 1) {
           assert(i == -1);
           return;
         }
         startGame(o, ip);
       },
-      impassables: [
-        Box(Offset(60, 90), null),
-        Button(Offset(60, 50), 2),
-        Door(Offset(100, 80))
-      ],
+      impassables: imps,
       sXVel: 1,
       endX: 120,
       auto: true,
@@ -44,7 +48,7 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  bool titleScreen = false;
+  bool titleScreen = true;
 
   bool endScreen = false;
 
@@ -191,25 +195,27 @@ class _MyAppState extends State<MyApp> {
                   title:
                       '${texts[level]} (previous level ${level == 0 ? 'N/A' : '${levelData[level - 1]}'})',
                   endX: goals[level],
-                  nextLevel: (i, o, ip) {
+                  nextLevel: (i, o, ip, time, winner) {
                     setState(() {
                       levels[min(levels.length - 1, max(level + i, 0))]
                           .add(o..reset());
                       levels[level].remove(o);
                       if (ip) {
-                        level += i;
-                        if (level < 0) {
-                          level = 0;
-                          levelData.add(LevelData());
-                          return;
+                        if (i == 1) {
+                          levelData.last.time = time;
+                          levelData.last.winner = winner;
                         }
-                        if (i.isNegative) {
-                          return;
-                        }
-                        if (level < levels.length) levelData.add(LevelData());
-                        if (level >= levels.length) {
-                          stopwatch.stop();
+                        if (level == levels.length - 1 && i == 1) {
                           endScreen = true;
+                          return;
+                        }
+                        if (i == -1) {
+                          if (level > 0) levelData.removeLast();
+                        } else {
+                          levelData.add(LevelData());
+                        }
+                        if (level + i >= 0) {
+                          level += i;
                         }
                       }
                     });
@@ -235,7 +241,7 @@ class GameWidget extends StatefulWidget {
       this.auto = false})
       : super(key: key);
 
-  final void Function(int, Impassable, bool) nextLevel;
+  final void Function(int, Impassable, bool, Duration, String) nextLevel;
   final String title;
   final double sXVel;
 
@@ -261,8 +267,8 @@ class _GameWidgetState extends State<GameWidget>
       physicsSimulator.dispose();
     }
     physicsSimulator = PhysicsSimulator(
-      (i, o, isPlayer) {
-        widget.nextLevel(i, o, isPlayer);
+      (i, o, isPlayer, time, winner) {
+        widget.nextLevel(i, o, isPlayer, time, winner);
       },
       widget.impassables,
       widget.endX,
@@ -274,8 +280,11 @@ class _GameWidgetState extends State<GameWidget>
     });
     while (true) {
       bool colliding = false;
-      for (Impassable i in physicsSimulator.impassables) {
+      for (Impassable i in physicsSimulator.impassables.toList()) {
         if (physicsSimulator.colliding(i.rect)) {
+          if (i.topLeft.dy > 400) {
+            physicsSimulator.impassables.remove(i);
+          }
           colliding = true;
           i.topLeft = Offset(i.topLeft.dx, i.topLeft.dy + 10);
           i.bottomRight = Offset(i.bottomRight.dx, i.bottomRight.dy + 10);
@@ -284,9 +293,6 @@ class _GameWidgetState extends State<GameWidget>
       if (!colliding) {
         break;
       }
-    }
-    if (!physicsSimExists) {
-      physicsSimulator.impassables.add(Player(Offset(0, 400), Offset(0, 0)));
     }
   }
 
@@ -366,12 +372,14 @@ class _GameWidgetState extends State<GameWidget>
 
 class GamePainter extends CustomPainter {
   static final TextPainter dash = TextPainter(
-      text: TextSpan(
-          text: String.fromCharCode(Icons.flutter_dash.codePoint),
-          style: TextStyle(
-              fontFamily: Icons.flutter_dash.fontFamily,
-              color: Colors.blue,
-              fontSize: 20)))
+    text: TextSpan(
+      text: String.fromCharCode(Icons.flutter_dash.codePoint),
+      style: TextStyle(
+          fontFamily: Icons.flutter_dash.fontFamily,
+          color: Colors.blue,
+          fontSize: 20),
+    ),
+  )
     ..textDirection = TextDirection.ltr
     ..layout();
   final List<Impassable> impassables;
@@ -383,6 +391,9 @@ class GamePainter extends CustomPainter {
   GamePainter(this.impassables, this.isDash, this.endX);
   @override
   void paint(Canvas canvas, Size size) {
+    if (impassables.every((a) => a is! PC)) {
+      return;
+    }
     double x = endX -
         (impassables.whereType<PC>().first.topLeft.dx - size.width / 2) +
         10;

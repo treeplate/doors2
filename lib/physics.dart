@@ -37,8 +37,7 @@ class MovingPlatform extends Impassable {
 List<LevelData> levelData = [
   LevelData()
     ..time = Duration.zero
-    ..winner = 'Nobody'
-    ..startTime = Duration.zero,
+    ..winner = 'Nobody',
   LevelData()
 ];
 
@@ -76,7 +75,7 @@ class PhysicsSimulator extends ChangeNotifier {
 
   PhysicsSimulator(this.nextLevel, this.impassables, this.endX) {}
 
-  final void Function(int, Impassable, bool) nextLevel;
+  final void Function(int, Impassable, bool, Duration, String) nextLevel;
   bool validTakeable(Impassable? obj) {
     return obj?.pushable ?? false;
   }
@@ -143,6 +142,9 @@ class PhysicsSimulator extends ChangeNotifier {
   void tick(Duration arg) {
     ticks++;
     if (duration1 == null && levelData.length > 2) {
+      if (levelData.last.sti) {
+        levelData[levelData.length - 1] = LevelData();
+      }
       levelData.last.startTime = arg;
       levelData.last.sti = true;
     }
@@ -194,20 +196,31 @@ class PhysicsSimulator extends ChangeNotifier {
         updateCollision(platform, speed, 0);
         assert(!colliding(platform.rect));
       }
-      if (platform.topLeft.dx >= endX) {
+      if (platform.topLeft.dx >= endX && levelData.last.sti) {
         if (platform is Player) {
           levelData.last.time = tickTime - levelData.last.startTime;
           levelData.last.winner =
               platform.runtimeType.toString() + platform.jumpKeybind.keyLabel;
         }
-        nextLevel(1, platform, platform is Player);
+        nextLevel(
+            1,
+            platform,
+            platform is Player,
+            tickTime - levelData.last.startTime,
+            platform.runtimeType.toString() +
+                ((platform is Player ? platform : null)?.jumpKeybind.keyLabel ??
+                    'Uhh'));
         return;
       }
-      if (platform.topLeft.dx <= -endX) {
-        if (platform is Player) {
-          levelData.removeLast();
-        }
-        nextLevel(-1, platform, platform is Player);
+      if (platform.topLeft.dx <= -endX && levelData.last.sti) {
+        nextLevel(
+            -1,
+            platform,
+            platform is Player,
+            tickTime - levelData.last.startTime,
+            platform.runtimeType.toString() +
+                ((platform is Player ? platform : null)?.jumpKeybind.keyLabel ??
+                    'Uhh'));
         return;
       }
       for (double i = 0; i < platform.moveDir.dy.abs(); i += kVelStep) {
@@ -290,7 +303,7 @@ class PhysicsSimulator extends ChangeNotifier {
 
   void handleKeyPress(RawKeyEvent event) {
     //print(event);
-    if (levelData.length == 2 && levelData.last.sti == false && ticks > 0) {
+    if (levelData.length <= 2 && levelData.last.sti == false && ticks > 0) {
       levelData.last.startTime = tickTime;
       levelData.last.sti = true;
     }
