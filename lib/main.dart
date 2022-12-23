@@ -12,8 +12,8 @@ void main() {
 Duration stopwatchElapsed = Duration.zero;
 
 List<Impassable> imps = [
-  Box(Offset(60, 90), null),
-  Button(Offset(60, 50), 2),
+  Box(Offset(60, 90), Colors.orange),
+  Button(Offset(60, 50), 0),
   Door(Offset(100, 80)),
   Impassable(Offset(-110, 200), Offset(-100, 0), Offset.zero),
   Player(Offset(0, 0), Offset(0, 0)),
@@ -77,15 +77,15 @@ class _MyAppState extends State<MyApp> {
       Impassable(Offset(210, 130), Offset(220, 0), Offset.zero),
     ],
     [
-      Button(Offset(40, 20), 3),
+      Button(Offset(40, 20), 0),
       Impassable(Offset(150, 200), Offset(180, 30), Offset.zero),
       Impassable(Offset(180, 70), Offset(210, 30), Offset.zero),
       Door(Offset(210, 80)),
       Box(Offset(170, 10), Colors.grey),
     ],
     [
-      Button(Offset(20, 20), 4),
-      Button(Offset(60, 20), 5),
+      Button(Offset(20, 20), 0),
+      Button(Offset(60, 20), 1),
       Impassable(Offset(150, 200), Offset(180, 30), Offset.zero),
       Impassable(Offset(180, 70), Offset(210, 30), Offset.zero),
       Door(Offset(210, 80)),
@@ -104,7 +104,7 @@ class _MyAppState extends State<MyApp> {
       Impassable(Offset(220, 240), Offset(230, 0), Offset.zero),
       Impassable(Offset(80, 310), Offset(230, 300), Offset.zero),
       Door(Offset(70, 350)),
-      Button(Offset(160, 20), 4),
+      Button(Offset(160, 20), 0),
       MovingPlatform(
           Offset(20, 20), Offset(50, 0), Offset(20, 270), Offset(0, 1)),
       Box(Offset(60, 260), Colors.grey),
@@ -114,7 +114,7 @@ class _MyAppState extends State<MyApp> {
       Impassable(Offset(50, 250), Offset(100, 240), Offset.zero),
       Impassable(Offset(220, 240), Offset(230, 50), Offset.zero),
       Door(Offset(230, 71)),
-      Button(Offset(100, 250), 3),
+      Button(Offset(100, 250), 0),
       MovingPlatform(
           Offset(20, 20), Offset(50, 0), Offset(20, 270), Offset(0, 1)),
       Impassable(Offset(130, 400), Offset(140, 240), Offset.zero),
@@ -197,9 +197,7 @@ class _MyAppState extends State<MyApp> {
                   endX: goals[level],
                   nextLevel: (i, o, ip, time, winner) {
                     setState(() {
-                      levels[min(levels.length - 1, max(level + i, 0))]
-                          .add(o..reset());
-                      levels[level].remove(o);
+                      levels[min(levels.length - 1, max(level + i, 0))].add(o);
                       if (ip) {
                         if (i == 1) {
                           levelData.last.time = time;

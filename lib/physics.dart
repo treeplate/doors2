@@ -151,7 +151,7 @@ class PhysicsSimulator extends ChangeNotifier {
     tickTime = arg;
     duration1 = arg;
     for (Button button in impassables.whereType<Button>()) {
-      (impassables[button.door] as Door).open = false;
+      (impassables.whereType<Door>().toList()[button.door]).open = false;
     }
     for (Player player in impassables.whereType<Player>().toList()) {
       updateHoldingPos(player);
@@ -159,7 +159,8 @@ class PhysicsSimulator extends ChangeNotifier {
       colliding(player.rect);
       player.bottomRight += Offset(0, 1);
       if (collided is Button) {
-        (impassables[(collided as Button).door] as Door).open = true;
+        (impassables.whereType<Door>().toList()[(collided as Button).door])
+            .open = true;
       }
 
       player.moveDir += Offset(0, -1);
@@ -168,7 +169,8 @@ class PhysicsSimulator extends ChangeNotifier {
       box.topLeft -= Offset(0, 1);
       box.bottomRight -= Offset(0, 1);
       if (colliding<Button>(box.rect)) {
-        (impassables[(collided as Button).door] as Door).open = true;
+        (impassables.whereType<Door>().toList()[(collided as Button).door])
+            .open = true;
       }
       box.topLeft += Offset(0, 1);
       box.bottomRight += Offset(0, 1);
@@ -202,6 +204,7 @@ class PhysicsSimulator extends ChangeNotifier {
           levelData.last.winner =
               platform.runtimeType.toString() + platform.jumpKeybind.keyLabel;
         }
+        impassables.remove(platform..reset());
         nextLevel(
             1,
             platform,
@@ -213,6 +216,7 @@ class PhysicsSimulator extends ChangeNotifier {
         return;
       }
       if (platform.topLeft.dx <= -endX && levelData.last.sti) {
+        impassables.remove(platform);
         nextLevel(
             -1,
             platform,
@@ -440,11 +444,16 @@ class Door extends Impassable {
   Door(Offset topLeft, {this.open = false})
       : t = open ? 0 : 1,
         super(topLeft, topLeft + Offset(10, -50), Offset.zero, Colors.teal);
-  bool open = false;
+  bool open;
   double t = 1;
   void reset() {
     super.reset();
-    open = false;
+    open = true;
+    while (open && t < 1) {
+      topLeft = Offset(topLeft.dx, topLeft.dy + 1);
+      bottomRight = Offset(bottomRight.dx, bottomRight.dy + 1);
+      t += 1 / 50;
+    }
   }
 
   @override
