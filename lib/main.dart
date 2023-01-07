@@ -12,7 +12,7 @@ void main() {
 Duration stopwatchElapsed = Duration.zero;
 
 List<Impassable> imps = [
-  Box(Offset(60, 90), Colors.orange),
+  Box(Offset(60, 90), Colors.grey),
   Button(Offset(60, 50), 0),
   Door(Offset(100, 80)),
   Impassable(Offset(-110, 200), Offset(-100, 0), Offset.zero),
@@ -55,15 +55,15 @@ class _MyAppState extends State<MyApp> {
   final List<List<Impassable>> levels = [
     [
       Box(Offset(00, 10), Colors.grey),
-      Box(Offset(10, 10), Colors.grey),
+      RBox(Offset(10, 10), Colors.grey),
       Box(Offset(20, 10), Colors.grey),
-      Box(Offset(30, 10), Colors.grey),
+      RBox(Offset(30, 10), Colors.grey),
       Box(Offset(40, 10), Colors.grey),
-      Box(Offset(50, 10), Colors.grey),
+      RBox(Offset(50, 10), Colors.grey),
       Box(Offset(60, 10), Colors.grey),
-      Box(Offset(70, 10), Colors.grey),
+      RBox(Offset(70, 10), Colors.grey),
       Box(Offset(80, 10), Colors.grey),
-      Box(Offset(90, 10), Colors.grey),
+      RBox(Offset(90, 10), Colors.grey),
     ],
     [
       Impassable(Offset(200, 200), Offset(300, 100), Offset.zero),
@@ -133,6 +133,7 @@ class _MyAppState extends State<MyApp> {
     "The platform will bring you up.",
     "Challenge level!",
     "Slide the box under",
+    "Floating box",
   ];
   int level = 1;
 
@@ -145,6 +146,7 @@ class _MyAppState extends State<MyApp> {
     230,
     230,
     230,
+    270,
     270,
   ];
   @override

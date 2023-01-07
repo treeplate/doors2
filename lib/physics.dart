@@ -177,6 +177,18 @@ class PhysicsSimulator extends ChangeNotifier {
 
       box.moveDir += Offset(0, -1);
     }
+    for (RBox box in impassables.whereType<RBox>()) {
+      box.topLeft += Offset(0, 1);
+      box.bottomRight += Offset(0, 1);
+      if (colliding<Button>(box.rect)) {
+        (impassables.whereType<Door>().toList()[(collided as Button).door])
+            .open = true;
+      }
+      box.topLeft -= Offset(0, 1);
+      box.bottomRight -= Offset(0, 1);
+
+      box.moveDir += Offset(0, 1);
+    }
     for (Impassable platform in impassables) {
       platform.room = impassables;
       if (platform is! Player) {
@@ -198,11 +210,26 @@ class PhysicsSimulator extends ChangeNotifier {
         updateCollision(platform, speed, 0);
         assert(!colliding(platform.rect));
       }
-      if (platform.topLeft.dx >= endX && levelData.last.sti) {
+      if (!platform.isHolding &&
+          platform.topLeft.dx >= endX &&
+          levelData.last.sti) {
         if (platform is Player) {
           levelData.last.time = tickTime - levelData.last.startTime;
           levelData.last.winner =
-              platform.runtimeType.toString() + platform.jumpKeybind.keyLabel;
+              platform.type.toString() + platform.jumpKeybind.keyLabel;
+          if (platform.holding != null) {
+            nextLevel(
+                1,
+                platform.holding!,
+                platform.holding is Player,
+                tickTime - levelData.last.startTime,
+                platform.holding!.type.toString() +
+                    (((platform.holding is Player ? platform.holding : null)
+                                as Player?)
+                            ?.jumpKeybind
+                            .keyLabel ??
+                        'Uhh'));
+          }
         }
         impassables.remove(platform..reset());
         nextLevel(
@@ -210,7 +237,7 @@ class PhysicsSimulator extends ChangeNotifier {
             platform,
             platform is Player,
             tickTime - levelData.last.startTime,
-            platform.runtimeType.toString() +
+            platform.type.toString() +
                 ((platform is Player ? platform : null)?.jumpKeybind.keyLabel ??
                     'Uhh'));
         return;
@@ -222,7 +249,7 @@ class PhysicsSimulator extends ChangeNotifier {
             platform,
             platform is Player,
             tickTime - levelData.last.startTime,
-            platform.runtimeType.toString() +
+            platform.type.toString() +
                 ((platform is Player ? platform : null)?.jumpKeybind.keyLabel ??
                     'Uhh'));
         return;
@@ -389,6 +416,7 @@ class PhysicsSimulator extends ChangeNotifier {
     final Impassable? holding = player.holding;
     if (holding != null) {
       holding.moveDir = Offset(player.moveDir.dx, player.moveDir.dy);
+      player.holding!.isHolding = false;
       player.holding = null;
       return;
     }
@@ -396,11 +424,13 @@ class PhysicsSimulator extends ChangeNotifier {
     player.bottomRight += Offset(10, 0);
     if (colliding(player.rect) && validTakeable(collided)) {
       player.holding = collided;
+      collided!.isHolding = true;
     }
     player.topLeft -= Offset(20, 0);
     player.bottomRight -= Offset(20, 0);
     if (colliding(player.rect) && validTakeable(collided)) {
       player.holding = collided;
+      collided!.isHolding = true;
     }
     player.topLeft += Offset(10, 0);
     player.bottomRight += Offset(10, 0);
@@ -412,6 +442,8 @@ class PhysicsSimulator extends ChangeNotifier {
 }
 
 class Impassable {
+  bool isHolding = false;
+
   Impassable(this.topLeft, this.bottomRight, this.moveDir,
       [this.color = Colors.brown])
       : oldTopLeft = topLeft,
@@ -422,6 +454,7 @@ class Impassable {
   final Offset oldTopLeft;
   final Offset oldBottomRight;
   final Color color;
+  String get type => 'Wall';
 
   bool get pushable => false;
   Rect get rect => Rect.fromPoints(topLeft, bottomRight);
@@ -429,8 +462,7 @@ class Impassable {
   void tick() {}
 
   void unTick() {}
-  String toString() =>
-      "$runtimeType ($hashCode) at $topLeft (moveDir: $moveDir)";
+  String toString() => "$type ($hashCode) at $topLeft (moveDir: $moveDir)";
   @mustCallSuper
   void reset() {
     if (pushable) {
@@ -446,6 +478,7 @@ class Door extends Impassable {
         super(topLeft, topLeft + Offset(10, -50), Offset.zero, Colors.teal);
   bool open;
   double t = 1;
+  String get type => 'Door';
   void reset() {
     super.reset();
     open = true;
@@ -488,6 +521,7 @@ class Button extends Impassable {
 
   final int door;
   String toString() => "<Button>";
+  String get type => 'Button';
 }
 
 class Box extends Impassable {
@@ -495,6 +529,15 @@ class Box extends Impassable {
       : super(topLeft, topLeft + Offset(10, -10), Offset.zero,
             color ?? Colors.grey);
   bool get pushable => true;
+  String get type => 'Box';
+}
+
+class RBox extends Impassable {
+  RBox(Offset topLeft, Color? color)
+      : super(topLeft, topLeft + Offset(10, -10), Offset.zero,
+            color ?? Colors.yellow);
+  bool get pushable => true;
+  String get type => 'Box';
 }
 
 abstract class PC extends Impassable {
@@ -524,4 +567,5 @@ class Player extends PC {
       : super(topLeft, topLeft + Offset(20, -20), moveDir, jumpKeybind,
             takeKeybind, rightKeybind, leftKeybind);
   bool get pushable => true;
+  String get type => 'Player';
 }
