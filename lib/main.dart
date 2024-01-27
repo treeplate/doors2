@@ -1,13 +1,24 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:flutter_midi_command/flutter_midi_command.dart';
+import 'package:flutter_midi_command/flutter_midi_command_messages.dart';
+import 'package:platformy/fpw_template.dart'
+    if (dart.library.io) 'file_picker_wrapper.dart';
 
 import 'dart:math';
 
+import 'midi-parser.dart';
 import 'physics.dart';
+import 'package:path/path.dart';
 
 void main() {
   runApp(MyApp());
 }
+
+double fps = 0;
+double maxFps = 0;
 
 Duration stopwatchElapsed = Duration.zero;
 
@@ -26,11 +37,15 @@ class TitleScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GameWidget(
-      title: "Wooden Doors 2",
-      nextLevel: (i, o, ip, time, winner) {
+      title: "Wooden Doors 2 (Hold D to start)",
+      nextLevel: (i, o, ip, ticks, winner) {
         if (i != 1) {
           assert(i == -1);
-          return;
+          // look they're not supposed to be here so let's reward them by bringing them to the first level
+        }
+        if (ip) {
+          stopwatchElapsed = Duration.zero;
+          o.moveDir = Offset.zero;
         }
         startGame(o, ip);
       },
@@ -38,6 +53,7 @@ class TitleScreen extends StatelessWidget {
       sXVel: 1,
       endX: 120,
       auto: true,
+      doTasIn: false,
     );
   }
 }
@@ -54,16 +70,22 @@ class _MyAppState extends State<MyApp> {
 
   final List<List<Impassable>> levels = [
     [
-      Box(Offset(00, 10), Colors.grey),
-      RBox(Offset(10, 10), Colors.grey),
-      Box(Offset(20, 10), Colors.grey),
-      RBox(Offset(30, 10), Colors.grey),
-      Box(Offset(40, 10), Colors.grey),
-      RBox(Offset(50, 10), Colors.grey),
-      Box(Offset(60, 10), Colors.grey),
-      RBox(Offset(70, 10), Colors.grey),
-      Box(Offset(80, 10), Colors.grey),
-      RBox(Offset(90, 10), Colors.grey),
+      Impassable(Offset(-210, 400), Offset(-200, 0),
+          Offset.zero), // if you can't fix the bug, work around it!
+      Box(Offset(00, 10), null),
+      RBox(Offset(10, 400), null),
+      DBox(Offset(21, 400), null),
+      DBox(Offset(30, 10), null),
+      Box(Offset(40, 400), null),
+      RBox(Offset(50, 10), null),
+      ABox(Offset(60, 400), null),
+      DBox(Offset(70, 10), null),
+      Box(Offset(80, 400), null),
+      RBox(Offset(90, 10), null),
+      ABox(Offset(100, 400), null),
+      ABox(Offset(110, 10), null),
+      Box(Offset(120, 400), null),
+      Box(Offset(131, 400), null),
     ],
     [
       Impassable(Offset(200, 200), Offset(300, 100), Offset.zero),
@@ -72,7 +94,7 @@ class _MyAppState extends State<MyApp> {
       Impassable(Offset(200, 50), Offset(300, 0), Offset.zero),
     ],
     [
-      Box(Offset(30, 10), Colors.grey),
+      Box(Offset(30, 10), null),
       Impassable(Offset(50, 10), Offset(80, 0), Offset.zero),
       Impassable(Offset(210, 130), Offset(220, 0), Offset.zero),
     ],
@@ -120,12 +142,20 @@ class _MyAppState extends State<MyApp> {
       Impassable(Offset(130, 400), Offset(140, 240), Offset.zero),
       Box(Offset(60, 240), Colors.grey),
     ],
+    [
+      Bouncy(Offset(251, 50), Offset(300, 0), true),
+      MovingPlatform(
+          Offset(200, 20), Offset(50, 0), Offset(200, 270), Offset(0, 1)),
+      Impassable(Offset(380, 310), Offset(500, 0), Offset.zero),
+      Impassable(Offset(200, 300), Offset(250, 310), Offset.zero),
+      Impassable(Offset(350, 300), Offset(379, 310), Offset.zero),
+    ],
   ];
 
   final List<Rect> playerWrap = [Rect.fromLTRB(0, 0, 0, 0)];
   final List<String> texts = [
     "You found the secret box room!",
-    "D to move the yellow square right. Get to the far right.",
+    "D to move the yellow square right (and A to move it left). Get to the far right (the green beacon).",
     "W to jump.",
     "E near a box to pick up the box, and E to drop it",
     "If you put a box on a button, the corresponding door opens.",
@@ -133,7 +163,7 @@ class _MyAppState extends State<MyApp> {
     "The platform will bring you up.",
     "Challenge level!",
     "Slide the box under",
-    "Floating box",
+    "Bouncy Platforms!",
   ];
   int level = 1;
 
@@ -147,14 +177,18 @@ class _MyAppState extends State<MyApp> {
     230,
     230,
     270,
-    270,
+    500,
   ];
+
+  Map<int, LevelData> levelData = {};
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Flutter Demo',
       theme: ThemeData(
+        brightness: Brightness.dark,
         primarySwatch: Colors.blue,
+        useMaterial3: true,
       ),
       home: titleScreen
           ? TitleScreen((o, ip) {
@@ -184,7 +218,12 @@ class _MyAppState extends State<MyApp> {
                               "Level results",
                               style: TextStyle(color: Colors.brown),
                             ),
-                            ...levelData.map((e) => Text('$e'))
+                            Text(
+                              levelData.entries
+                                  .map((e) => "level ${e.key}: ${e.value}")
+                                  .join('\n'),
+                              style: TextStyle(color: Colors.brown),
+                            ),
                           ],
                         ),
                         SizedBox(width: 10),
@@ -193,38 +232,52 @@ class _MyAppState extends State<MyApp> {
                     ),
                   ),
                 )
-              : GameWidget(
-                  title:
-                      '${texts[level]} (previous level ${level == 0 ? 'N/A' : '${levelData[level - 1]}'})',
-                  endX: goals[level],
-                  nextLevel: (i, o, ip, time, winner) {
-                    setState(() {
-                      levels[min(levels.length - 1, max(level + i, 0))].add(o);
-                      if (ip) {
-                        if (i == 1) {
-                          levelData.last.time = time;
-                          levelData.last.winner = winner;
+              : SizedBox(
+                  height: 400,
+                  child: GameWidget(
+                    doTasIn: false,
+                    title:
+                        '${texts[level]} (previous level ${levelData[level - 1] ?? 'does not exist'})',
+                    endX: goals[level],
+                    nextLevel: (i, o, ip, ticks, winner) {
+                      setState(() {
+                        levels[min(levels.length - 1, max(level + i, 0))]
+                            .add(o);
+
+                        correctCollisions(levels[min(levels.length - 1,
+                            max(level + i, 0))]); // o may be somewhere bad
+                        if (ip) {
+                          if (i == 1) {
+                            levelData[level] = LevelData(winner, ticks);
+                          }
+                          if (level == levels.length - 1 && i == 1) {
+                            endScreen = true;
+                            return;
+                          }
+                          if (level + i >= 0) {
+                            level += i;
+                          }
                         }
-                        if (level == levels.length - 1 && i == 1) {
-                          endScreen = true;
-                          return;
-                        }
-                        if (i == -1) {
-                          if (level > 0) levelData.removeLast();
-                        } else {
-                          levelData.add(LevelData());
-                        }
-                        if (level + i >= 0) {
-                          level += i;
-                        }
-                      }
-                    });
-                  },
-                  impassables: levels[level],
+                      });
+                    },
+                    impassables: levels[level],
+                  ),
                 ),
     );
   }
 }
+
+class LevelData {
+  final String winner;
+  final int time;
+
+  String toString() =>
+      "$winner won in ${Duration(milliseconds: ((time / 60) * 1000).ceil())} ($time frames)";
+
+  LevelData(this.winner, this.time);
+}
+
+bool tasOut = false;
 
 class GameWidget extends StatefulWidget {
   final bool auto;
@@ -238,12 +291,14 @@ class GameWidget extends StatefulWidget {
       required this.impassables,
       required this.endX,
       this.sXVel = 0,
-      this.auto = false})
+      this.auto = false,
+      this.doTasIn = true})
       : super(key: key);
 
-  final void Function(int, Impassable, bool, Duration, String) nextLevel;
+  final void Function(int, Impassable, bool, int, String) nextLevel;
   final String title;
   final double sXVel;
+  final bool doTasIn;
 
   final List<Impassable> impassables;
 
@@ -255,45 +310,87 @@ class _GameWidgetState extends State<GameWidget>
     with SingleTickerProviderStateMixin {
   late PhysicsSimulator physicsSimulator;
   late final Ticker ticker;
+  bool setup = false;
+  List<MidiDevice> midiDevices = [];
+  StreamSubscription? incomingMidiMessages;
   @override
   void initState() {
     super.initState();
-    setupPhysics(false);
-    ticker = createTicker(tick)..start();
+    MidiCommand().devices.then((value) {
+      setState(() {
+        midiDevices = value!;
+      });
+    });
+    MidiCommand().onMidiSetupChanged!.listen((event) {
+      MidiCommand().devices.then((value) {
+        if (!mounted) return;
+        setState(() {
+          midiDevices = value!;
+        });
+      });
+    });
+    () async {
+      if (widget.doTasIn && filePickerSupported) {
+        PickedFile? firstFile = await pickFile();
+        if (firstFile != null) {
+          dir = dirname(firstFile.path);
+          next = basename(firstFile.path);
+          print('starting tas: $next');
+        }
+      }
+    }()
+        .then((value) => setupPhysics(false).then((value) async {
+              ticker = createTicker(tick)..start();
+              setup = true;
+            }));
   }
 
-  void setupPhysics(bool physicsSimExists) {
+  PickedFile? outTas;
+  String? dir;
+
+  String? next;
+
+  Future<void> setupPhysics(bool physicsSimExists) async {
     if (physicsSimExists) {
       physicsSimulator.dispose();
     }
+    List<List<MoveKey>> tas = [];
+    var output = tasOut && filePickerSupported ? await pickFile() : null;
+    if (output != null)
+      outTas = getFile(output.path);
+    else
+      outTas = null;
+    if (next != null) {
+      PickedFile tasRec = getFile(join(dir!, next));
+      if (tasRec.exists) {
+        var lines = tasRec.readFileLines();
+        next = lines.first;
+        print('new tas: $next');
+
+        tas = lines
+            .skip(1)
+            .map((e) => e.split(',').skip(1).map((e) => parseKey(e)).toList())
+            .toList();
+      } else {
+        print('nope $tasRec');
+      }
+    }
+
     physicsSimulator = PhysicsSimulator(
-      (i, o, isPlayer, time, winner) {
-        widget.nextLevel(i, o, isPlayer, time, winner);
+      (i, o, isPlayer, winner) {
+        widget.nextLevel(i, o, isPlayer, ticksMoved, winner);
+        if (isPlayer) ticksMoved = 0;
       },
       widget.impassables,
       widget.endX,
+      tas,
     );
     physicsSimulator.addListener(() {
       setState(() {
         // equivalent to just calling markNeedsBuild
       });
     });
-    while (true) {
-      bool colliding = false;
-      for (Impassable i in physicsSimulator.impassables.toList()) {
-        if (physicsSimulator.colliding(i.rect)) {
-          if (i.topLeft.dy > 400) {
-            physicsSimulator.impassables.remove(i);
-          }
-          colliding = true;
-          i.topLeft = Offset(i.topLeft.dx, i.topLeft.dy + 10);
-          i.bottomRight = Offset(i.bottomRight.dx, i.bottomRight.dy + 10);
-        }
-      }
-      if (!colliding) {
-        break;
-      }
-    }
+    correctCollisions(physicsSimulator.impassables);
   }
 
   void reset() {
@@ -303,6 +400,53 @@ class _GameWidgetState extends State<GameWidget>
   late BuildContext focusContext;
   @override
   Widget build(BuildContext context) {
+    if (!setup) {
+      return ColoredBox(color: Colors.yellow);
+    }
+    if (midiDevices.length > 1) {
+      return Directionality(
+        textDirection: TextDirection.ltr,
+        child: Center(
+            child: Text(
+                'Please disconnect all but one of the following MIDI devices:\n${midiDevices.map((e) => e.name).join('\n')}')),
+      );
+    }
+    if (midiDevices.length > 0 &&
+        (incomingMidiMessages == null || !midiDevices.single.connected)) {
+      incomingMidiMessages?.cancel();
+      Player p = physicsSimulator.impassables
+          .firstWhere((element) => element is Player) as Player;
+      incomingMidiMessages = MidiCommand().onMidiDataReceived!.listen((event) {
+        MidiMessage msg = parseMidiMessage(event.data);
+        if (!mounted) return;
+        setState(() {
+          if (msg is NoteOnMessage) {
+            keyPressed = true;
+            if (msg.note == 21) {
+              physicsSimulator.handleLDown(p);
+            } else if (msg.note == 23) {
+              physicsSimulator.handleRDown(p);
+            } else if (msg.note == 22) {
+              physicsSimulator.handleJDown(p);
+            } else if (msg.note == 24) {
+              physicsSimulator.handleTake(p);
+            } else if (msg.note == 25) {
+              physicsSimulator.reset();
+            }
+          } else if (msg is NoteOffMessage) {
+            keyPressed = true;
+            if (msg.note == 21) {
+              physicsSimulator.handleLRUp(p);
+            } else if (msg.note == 23) {
+              physicsSimulator.handleLRUp(p);
+            }
+          }
+        });
+      });
+    }
+    if (midiDevices.length > 0 && !midiDevices.single.connected) {
+      MidiCommand().connectToDevice(midiDevices.single);
+    }
     return Focus(
       autofocus: true,
       onKey: _handleKeyPress,
@@ -314,6 +458,7 @@ class _GameWidgetState extends State<GameWidget>
           appBar: AppBar(
             title: Text(widget.title),
             actions: [
+              if (midiDevices.length > 0) Icon(Icons.piano),
               IconButton(onPressed: reset, icon: Icon(Icons.replay_outlined)),
               SizedBox(width: 40)
             ],
@@ -321,14 +466,30 @@ class _GameWidgetState extends State<GameWidget>
           body: GestureDetector(
             child: Center(
               child: LayoutBuilder(builder: (context, constraints) {
-                return Container(
-                  color: Colors.white,
-                  height: 400,
-                  child: CustomPaint(
-                    painter: GamePainter(physicsSimulator.impassables,
-                        physicsSimulator.dashMode, physicsSimulator.endX),
-                    size: Size(constraints.biggest.width, 400),
-                  ),
+                return Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      '${fps.roundToDouble()} fps',
+                      style: TextStyle(color: Colors.brown),
+                    ),
+                    Container(
+                      color: Colors.black,
+                      height: 400,
+                      child: CustomPaint(
+                        painter: GamePainter(
+                            physicsSimulator.impassables,
+                            physicsSimulator.ghosts,
+                            physicsSimulator.dashMode,
+                            physicsSimulator.endX),
+                        size: Size(constraints.biggest.width, 400),
+                      ),
+                    ),
+                    Text(
+                      '${maxFps.roundToDouble()} possible fps',
+                      style: TextStyle(color: Colors.brown),
+                    ),
+                  ],
                 );
               }),
             ),
@@ -344,8 +505,30 @@ class _GameWidgetState extends State<GameWidget>
     super.dispose();
   }
 
+  List<MoveKey> keys = [];
+  bool keyPressed = false;
   KeyEventResult _handleKeyPress(FocusNode node, RawKeyEvent event) {
+    if (event.repeat) return KeyEventResult.handled;
+    keyPressed = true;
+    if (physicsSimulator.impassables.every((element) => element is! Player))
+      return KeyEventResult.ignored;
     physicsSimulator.handleKeyPress(event);
+    if (event.logicalKey ==
+        physicsSimulator.impassables.whereType<Player>().first.leftKeybind) {
+      keys.add(MoveKey.l);
+    }
+    if (event.logicalKey ==
+        physicsSimulator.impassables.whereType<Player>().first.rightKeybind) {
+      keys.add(MoveKey.r);
+    }
+    if (event.logicalKey ==
+        physicsSimulator.impassables.whereType<Player>().first.jumpKeybind) {
+      keys.add(MoveKey.j);
+    }
+    if (event.logicalKey ==
+        physicsSimulator.impassables.whereType<Player>().first.takeKeybind) {
+      keys.add(MoveKey.t);
+    }
     return KeyEventResult.handled;
   }
 
@@ -356,12 +539,41 @@ class _GameWidgetState extends State<GameWidget>
     }
   }
 
+  int ticksMoved = 0;
   Duration pArg = Duration.zero;
+  Duration p2Arg = Duration.zero;
+  List<double> fpss = [];
+  List<double> mfpss = [];
   void tick(Duration arg) {
-    if (arg - pArg >= Duration(milliseconds: 16)) {
-      physicsSimulator.tick(
-          Duration(milliseconds: (physicsSimulator.ticks * (1000 ~/ 60))));
-      if (levelData.last.sti) {
+    if (mfpss.length >= 10) {
+      maxFps = mfpss.fold<double>(
+              0, (previousValue, element) => previousValue + element) /
+          mfpss.length;
+      mfpss = [];
+    }
+    mfpss.add(1 / (arg.inMilliseconds / 1000 - p2Arg.inMilliseconds / 1000));
+    p2Arg = arg;
+    if (arg - pArg >= Duration(milliseconds: 16) &&
+        !physicsSimulator.isDisposed) {
+      if (mfpss.length >= 10) {
+        fps = fpss.fold<double>(
+                0, (previousValue, element) => previousValue + element) /
+            fpss.length;
+        fpss = [];
+      }
+      fpss.add(1 / (arg.inMilliseconds / 1000 - pArg.inMilliseconds / 1000));
+      if (outTas != null)
+        outTas!.appendToFile(
+          keys.isEmpty ? '\n' : ',${keys.map((e) => e.name).join(',')}\n',
+        );
+      keys = [];
+      if (physicsSimulator.tasKeys.length > physicsSimulator.ticks &&
+          physicsSimulator.tasKeys[physicsSimulator.ticks].length > 0) {
+        keyPressed = true;
+      }
+      physicsSimulator.tick();
+      if (keyPressed) {
+        ticksMoved++;
         stopwatchElapsed =
             stopwatchElapsed + Duration(milliseconds: 1000 ~/ 60);
       }
@@ -383,12 +595,13 @@ class GamePainter extends CustomPainter {
     ..textDirection = TextDirection.ltr
     ..layout();
   final List<Impassable> impassables;
+  final List<Impassable> ghosts;
 
   final bool isDash;
 
   final double endX;
 
-  GamePainter(this.impassables, this.isDash, this.endX);
+  GamePainter(this.impassables, this.ghosts, this.isDash, this.endX);
   @override
   void paint(Canvas canvas, Size size) {
     if (impassables.every((a) => a is! PC)) {
@@ -439,6 +652,23 @@ class GamePainter extends CustomPainter {
           (size.height) - (impassable.bottomRight.dy),
         ),
         Paint()..color = color,
+      );
+    }
+    for (Impassable impassable in ghosts) {
+      Color color = impassable.color;
+      Color color2 = Colors.transparent;
+      canvas.drawRect(
+        Rect.fromLTRB(
+          impassable.topLeft.dx -
+              (impassables.whereType<PC>().first.topLeft.dx - size.width / 2),
+          (size.height) - (impassable.topLeft.dy),
+          impassable.bottomRight.dx -
+              (impassables.whereType<PC>().first.topLeft.dx - size.width / 2),
+          (size.height) - (impassable.bottomRight.dy),
+        ),
+        Paint()
+          ..color = color2
+          ..style = PaintingStyle.stroke,
       );
     }
     if (isDash)
