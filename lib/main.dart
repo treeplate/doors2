@@ -148,7 +148,7 @@ class _MyAppState extends State<MyApp> {
           Offset(200, 20), Offset(50, 0), Offset(200, 270), Offset(0, 1)),
       Impassable(Offset(380, 310), Offset(500, 0), Offset.zero),
       Impassable(Offset(200, 300), Offset(250, 310), Offset.zero),
-      Impassable(Offset(350, 300), Offset(379, 310), Offset.zero),
+      Impassable(Offset(360, 300), Offset(379, 310), Offset.zero),
     ],
   ];
 
@@ -235,7 +235,7 @@ class _MyAppState extends State<MyApp> {
               : SizedBox(
                   height: 400,
                   child: GameWidget(
-                    doTasIn: false,
+                    doTasIn: true,
                     title:
                         '${texts[level]} (previous level ${levelData[level - 1] ?? 'does not exist'})',
                     endX: goals[level],
