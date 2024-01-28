@@ -145,7 +145,6 @@ class PhysicsSimulator extends ChangeNotifier {
       }
     }
     correctCollisions(impassables);
-    ghosts.clear();
     notifyListeners();
   }
 
@@ -305,8 +304,6 @@ class PhysicsSimulator extends ChangeNotifier {
         platform.bottomRight += Offset(speed, 0);
         updateCollision(platform, speed, 0);
         if (colliding(platform.rect)) {
-          ghosts.add(platform);
-          ghosts.add(collided ?? Box(Offset.zero, null));
           notifyListeners();
           throw StateError('colliding');
         }
@@ -571,14 +568,8 @@ class PhysicsSimulator extends ChangeNotifier {
       player.topLeft += Offset(6 * xGravSign / 1, 3 * yGravSign / 1);
       player.bottomRight += Offset(6 * xGravSign / 1, 3 * yGravSign / 1);
       player.moveDir += Offset(h * xGravSign, h * yGravSign);
-      ghosts.add(Box(player.topLeft, Colors.green));
-      ghosts.add(Box(
-          Offset.lerp(player.topLeft, player.bottomRight, .5)!, Colors.green));
     } else {
       print('nop');
-      ghosts.add(Box(player.topLeft, Colors.blue));
-      ghosts.add(Box(
-          Offset.lerp(player.topLeft, player.bottomRight, .5)!, Colors.blue));
       player.topLeft += Offset(3 * xGravSign / 1, 3 * yGravSign / 1);
       player.bottomRight += Offset(3 * xGravSign / 1, 3 * yGravSign / 1);
     }
@@ -616,7 +607,6 @@ class PhysicsSimulator extends ChangeNotifier {
   }
 
   void bounce(Bouncy me, Impassable bounced) {
-    ghosts.add(Box(bounced.topLeft, Colors.red));
     if (me.bounceVertically) {
       bounced.moveDir = Offset(bounced.moveDir.dx, -bounced.moveDir.dy);
     } else {

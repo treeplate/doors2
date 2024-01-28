@@ -32,8 +32,13 @@ List<Impassable> imps = [
 
 class TitleScreen extends StatelessWidget {
   final void Function(Impassable, bool) startGame;
+  final VoidCallback toggleDarkMode;
 
-  TitleScreen(this.startGame, {Key? key}) : super(key: key);
+  final bool darkMode;
+
+  TitleScreen(this.startGame,
+      {Key? key, required this.darkMode, required this.toggleDarkMode})
+      : super(key: key);
   @override
   Widget build(BuildContext context) {
     return GameWidget(
@@ -54,6 +59,8 @@ class TitleScreen extends StatelessWidget {
       endX: 120,
       auto: true,
       doTasIn: false,
+      darkMode: darkMode,
+      toggleDarkMode: toggleDarkMode,
     );
   }
 }
@@ -180,18 +187,26 @@ class _MyAppState extends State<MyApp> {
     500,
   ];
 
+  late bool darkMode = View.of(this.context).platformDispatcher.platformBrightness == Brightness.dark;
+  void toggleDarkMode() {
+    setState(() {
+      darkMode = !darkMode;
+    });
+  }
+
   Map<int, LevelData> levelData = {};
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Flutter Demo',
       theme: ThemeData(
-        brightness: Brightness.dark,
+        brightness: darkMode ? Brightness.dark : Brightness.light,
         primarySwatch: Colors.blue,
         useMaterial3: true,
       ),
       home: titleScreen
-          ? TitleScreen((o, ip) {
+          ? TitleScreen(darkMode: darkMode, toggleDarkMode: toggleDarkMode,
+              (o, ip) {
               setState(() {
                 if (ip) {
                   titleScreen = false;
@@ -236,6 +251,8 @@ class _MyAppState extends State<MyApp> {
                   height: 400,
                   child: GameWidget(
                     doTasIn: true,
+                    darkMode: darkMode,
+                    toggleDarkMode: toggleDarkMode,
                     title:
                         '${texts[level]} (previous level ${levelData[level - 1] ?? 'does not exist'})',
                     endX: goals[level],
@@ -292,13 +309,17 @@ class GameWidget extends StatefulWidget {
       required this.endX,
       this.sXVel = 0,
       this.auto = false,
-      this.doTasIn = true})
+      this.doTasIn = true,
+      required this.darkMode,
+      required this.toggleDarkMode})
       : super(key: key);
 
   final void Function(int, Impassable, bool, int, String) nextLevel;
   final String title;
   final double sXVel;
   final bool doTasIn;
+  final bool darkMode;
+  final VoidCallback toggleDarkMode;
 
   final List<Impassable> impassables;
 
@@ -397,6 +418,8 @@ class _GameWidgetState extends State<GameWidget>
     physicsSimulator.reset();
   }
 
+  int darkModeT = 0; // 0 = dark mode, 255 = light mode
+
   late BuildContext focusContext;
   @override
   Widget build(BuildContext context) {
@@ -460,6 +483,11 @@ class _GameWidgetState extends State<GameWidget>
             actions: [
               if (midiDevices.length > 0) Icon(Icons.piano),
               IconButton(onPressed: reset, icon: Icon(Icons.replay_outlined)),
+              IconButton(
+                  onPressed: widget.toggleDarkMode,
+                  icon: widget.darkMode
+                      ? Icon(Icons.wb_sunny_outlined)
+                      : Icon(Icons.mode_night_outlined)),
               SizedBox(width: 40)
             ],
           ),
@@ -474,7 +502,7 @@ class _GameWidgetState extends State<GameWidget>
                       style: TextStyle(color: Colors.brown),
                     ),
                     Container(
-                      color: Colors.black,
+                      color: Color.fromARGB(255, darkModeT, darkModeT, darkModeT),
                       height: 400,
                       child: CustomPaint(
                         painter: GamePainter(
@@ -545,6 +573,12 @@ class _GameWidgetState extends State<GameWidget>
   List<double> fpss = [];
   List<double> mfpss = [];
   void tick(Duration arg) {
+    if (widget.darkMode && darkModeT > 0) {
+      darkModeT -= 20;
+    } else if (!widget.darkMode && darkModeT < 255) {
+      darkModeT += 20;
+    }
+    darkModeT = max(0, min(darkModeT, 255));
     if (mfpss.length >= 10) {
       maxFps = mfpss.fold<double>(
               0, (previousValue, element) => previousValue + element) /
@@ -655,8 +689,7 @@ class GamePainter extends CustomPainter {
       );
     }
     for (Impassable impassable in ghosts) {
-      Color color = impassable.color;
-      Color color2 = Colors.transparent;
+      Color color = impassable.color.withAlpha(0x80);
       canvas.drawRect(
         Rect.fromLTRB(
           impassable.topLeft.dx -
@@ -667,7 +700,7 @@ class GamePainter extends CustomPainter {
           (size.height) - (impassable.bottomRight.dy),
         ),
         Paint()
-          ..color = color2
+          ..color = color
           ..style = PaintingStyle.stroke,
       );
     }
