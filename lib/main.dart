@@ -187,7 +187,9 @@ class _MyAppState extends State<MyApp> {
     500,
   ];
 
-  late bool darkMode = View.of(this.context).platformDispatcher.platformBrightness == Brightness.dark;
+  late bool darkMode =
+      View.of(this.context).platformDispatcher.platformBrightness ==
+          Brightness.dark;
   void toggleDarkMode() {
     setState(() {
       darkMode = !darkMode;
@@ -502,14 +504,16 @@ class _GameWidgetState extends State<GameWidget>
                       style: TextStyle(color: Colors.brown),
                     ),
                     Container(
-                      color: Color.fromARGB(255, darkModeT, darkModeT, darkModeT),
+                      color: Theme.of(context).canvasColor,
                       height: 400,
                       child: CustomPaint(
                         painter: GamePainter(
                             physicsSimulator.impassables,
                             physicsSimulator.ghosts,
                             physicsSimulator.dashMode,
-                            physicsSimulator.endX),
+                            physicsSimulator.endX,
+                            Color(~Theme.of(context).canvasColor.value)
+                                .withAlpha(255)),
                         size: Size(constraints.biggest.width, 400),
                       ),
                     ),
@@ -634,8 +638,10 @@ class GamePainter extends CustomPainter {
   final bool isDash;
 
   final double endX;
+  final Color contrastColor;
 
-  GamePainter(this.impassables, this.ghosts, this.isDash, this.endX);
+  GamePainter(this.impassables, this.ghosts, this.isDash, this.endX,
+      this.contrastColor);
   @override
   void paint(Canvas canvas, Size size) {
     if (impassables.every((a) => a is! PC)) {
@@ -667,12 +673,11 @@ class GamePainter extends CustomPainter {
           Offset(i * 10 - impassables.whereType<PC>().first.topLeft.dx % 10,
               size.height),
           1,
-          Paint()..color = Colors.black);
-      canvas.drawRect(
-          Offset(i * 10 - impassables.whereType<PC>().first.topLeft.dx % 10,
-                  0) &
-              Size(1, 1),
-          Paint()..color = Color(0xFF202020));
+          Paint()..color = contrastColor);
+      canvas.drawCircle(
+          Offset(i * 10 - impassables.whereType<PC>().first.topLeft.dx % 10, 0),
+          1,
+          Paint()..color = contrastColor);
     }
     for (Impassable impassable in impassables) {
       Color color = impassable.color;
