@@ -1,8 +1,7 @@
 import 'dart:ui' show Offset, Rect;
 
 import 'package:flutter/material.dart' show Colors;
-import 'package:flutter/services.dart'
-    show Color, LogicalKeyboardKey, RawKeyDownEvent, RawKeyEvent, RawKeyUpEvent;
+import 'package:flutter/services.dart' show Color, LogicalKeyboardKey;
 import 'package:flutter/widgets.dart' show ChangeNotifier, mustCallSuper;
 
 final Stopwatch stopwatch = Stopwatch();
@@ -95,14 +94,12 @@ class PhysicsSimulator extends ChangeNotifier {
   static const double friction = 0.01;
   double gravity = 1;
   double xGravity = 0;
-
-  bool keyCheck = false;
   bool isDisposed = false;
 
   int ticks = 0;
   bool get dashMode => false;
 
-  PhysicsSimulator(this.nextLevel, this.impassables, this.endX, this.tasKeys);
+  PhysicsSimulator(this.nextLevel, this.impassables, this.endX);
 
   final void Function(int, Impassable, bool, String) nextLevel;
   bool validTakeable(Impassable? obj) {
@@ -155,64 +152,14 @@ class PhysicsSimulator extends ChangeNotifier {
   Duration? duration1;
   late Duration tickTime;
 
-  bool lPressed = false;
-  bool rPressed = false;
-  bool jPressed = false;
-  bool tPressed = false;
-  final List<List<MoveKey>> tasKeys;
-
   void tick() {
-    if (tasKeys.length > ticks &&
-        impassables.any(
-          (element) => element is Player,
-        )) {
-      for (MoveKey key in tasKeys[ticks]) {
-        Player player = impassables.whereType<Player>().single;
-        switch (key) {
-          case MoveKey.l:
-            if (!lPressed) {
-              handleLDown(player);
-              lPressed = true;
-            } else {
-              handleLRUp(player);
-              lPressed = false;
-            }
-            break;
-          case MoveKey.r:
-            if (!rPressed) {
-              handleRDown(player);
-              rPressed = true;
-            } else {
-              handleLRUp(player);
-              rPressed = false;
-            }
-            break;
-          case MoveKey.t:
-            if (tPressed) {
-              tPressed = false;
-            } else {
-              tPressed = true;
-              handleTake(player);
-            }
-            break;
-          case MoveKey.j:
-            if (!jPressed) {
-              handleJDown(player);
-              jPressed = true;
-            } else {
-              jPressed = false;
-            }
-            break;
-        }
-      }
-    }
     ticks++;
     for (Button button in impassables.whereType<Button>()) {
       List<Door> doors = impassables.whereType<Door>().toList();
       if (doors.length <= button.door) continue;
       (doors[button.door]).open = false;
     }
-    for (Player player in impassables.whereType<Player>().toList()) {
+    for (PC player in impassables.whereType<PC>().toList()) {
       updateHoldingPos(player);
       player.bottomRight -= Offset(xGravity.sign, gravity.sign);
       colliding(player.rect);
@@ -283,7 +230,8 @@ class PhysicsSimulator extends ChangeNotifier {
     }
     for (Impassable platform in impassables) {
       platform.room = impassables;
-      if (platform is! Player) {
+      Offset? playerVel;
+      if (platform is! PC) {
         platform.topLeft -= Offset(xGravity.sign, gravity.sign);
         platform.bottomRight -= Offset(xGravity.sign, gravity.sign);
         if (platform.moveDir.dx != 0 && colliding(platform.rect)) {
@@ -293,6 +241,16 @@ class PhysicsSimulator extends ChangeNotifier {
         }
         platform.topLeft += Offset(xGravity.sign, gravity.sign);
         platform.bottomRight += Offset(xGravity.sign, gravity.sign);
+      } else {
+        playerVel = platform.moveDir;
+        
+        if (platform.pressedsInited && platform.leftPressed()) {
+          platform.moveDir += Offset(-2 * gravity.sign, 2 * xGravity.sign);
+        }
+        if (!platform.pressedsInited && platform.preRightPressed() || platform.pressedsInited && platform.rightPressed()) {
+          platform.moveDir += Offset(2 * gravity.sign, -2 * xGravity.sign);
+        }
+        
       }
       for (double i = 0; i < platform.moveDir.dx.abs(); i += kVelStep) {
         if (platform.moveDir.dx == 0) break;
@@ -308,17 +266,20 @@ class PhysicsSimulator extends ChangeNotifier {
           throw StateError('colliding');
         }
       }
+      if (platform.moveDir != (playerVel ?? platform.moveDir)) {
+        platform.moveDir = playerVel!;
+      }
       if (!platform.isHolding && platform.topLeft.dx >= endX) {
-        if (platform is Player) {
+        if (platform is PC) {
           platform.type.toString() + platform.jumpKeybind.keyLabel;
           if (platform.holding != null) {
             nextLevel(
                 1,
                 platform.holding!,
-                platform.holding is Player,
+                platform.holding is PC,
                 platform.holding!.type.toString() +
-                    (((platform.holding is Player ? platform.holding : null)
-                                as Player?)
+                    (((platform.holding is PC ? platform.holding : null)
+                                as PC?)
                             ?.jumpKeybind
                             .keyLabel ??
                         'Uhh'));
@@ -328,9 +289,9 @@ class PhysicsSimulator extends ChangeNotifier {
         nextLevel(
             1,
             platform,
-            platform is Player,
+            platform is PC,
             platform.type.toString() +
-                ((platform is Player ? platform : null)?.jumpKeybind.keyLabel ??
+                ((platform is PC ? platform : null)?.jumpKeybind.keyLabel ??
                     'Uhh'));
         return;
       }
@@ -339,9 +300,9 @@ class PhysicsSimulator extends ChangeNotifier {
         nextLevel(
             -1,
             platform,
-            platform is Player,
+            platform is PC,
             platform.type.toString() +
-                ((platform is Player ? platform : null)?.jumpKeybind.keyLabel ??
+                ((platform is PC ? platform : null)?.jumpKeybind.keyLabel ??
                     'Uhh'));
         return;
       }
@@ -360,7 +321,7 @@ class PhysicsSimulator extends ChangeNotifier {
       if (sX != 0 || sY != 0) updateCollision(platform, sX, sY, untick: true);
     }
     for (Impassable p in impassables) {
-      if (p is Player) {
+      if (p is PC) {
         p.jumped = false;
       }
     }
@@ -388,8 +349,8 @@ class PhysicsSimulator extends ChangeNotifier {
               thing?.topLeft -= Offset(sX, sY);
               thing?.bottomRight -= Offset(sX, sY);
             }
-            // xxx different gravity support for this line
-            thing?.moveDir = Offset(thing.moveDir.dx, 0);
+            if (sX != 0) thing?.moveDir = Offset(0, thing.moveDir.dy);
+            if (sY != 0) thing?.moveDir = Offset(thing.moveDir.dx, 0);
           }
           if (untick) platform.unTick();
           return;
@@ -420,10 +381,6 @@ class PhysicsSimulator extends ChangeNotifier {
     return BounceResult.wasntABouncy;
   }
 
-  LogicalKeyboardKey? j;
-  LogicalKeyboardKey? t;
-  LogicalKeyboardKey? r;
-  LogicalKeyboardKey? l;
   void updateHoldingPos(PC player) {
     if (player.holding == null) {
       return;
@@ -449,106 +406,10 @@ class PhysicsSimulator extends ChangeNotifier {
     super.dispose();
   }
 
-  void handleLDown(Player player) {
-    if (xGravity == 0) {
-      player.moveDir = Offset(-2 * gravity.sign, player.moveDir.dy);
-    } else if (gravity == 0) {
-      player.moveDir = Offset(player.moveDir.dx, 2 * xGravity.sign);
-    } else {
-      player.moveDir = Offset(-2 * gravity.sign, 2 * xGravity.sign);
-    }
-  }
-
-  void handleRDown(Player player) {
-    if (xGravity == 0) {
-      player.moveDir = Offset(2 * gravity.sign, player.moveDir.dy);
-    } else if (gravity == 0) {
-      player.moveDir = Offset(player.moveDir.dx, -2 * xGravity.sign);
-    } else {
-      player.moveDir = Offset(2 * gravity.sign, -2 * xGravity.sign);
-    }
-  }
-
-  void handleJDown(Player player) {
+  void handleJDown(PC player) {
     if (!player.jumped) {
       jump(17, player);
       player.jumped = true;
-    }
-  }
-
-  void handleLRUp(Player player) {
-    if (xGravity == 0) {
-      player.moveDir = Offset(0, player.moveDir.dy);
-    } else if (gravity == 0) {
-      player.moveDir = Offset(player.moveDir.dx, 0);
-    } else {
-      player.moveDir = Offset(0,
-          0); // TODO: reconsider the correct way to do this; e.g. the one that doesn't cancel jumps
-    }
-  }
-
-  void handleKeyPress(RawKeyEvent event) {
-    //print(event);
-    for (Player player in impassables.whereType()) {
-      if (event is RawKeyUpEvent && !keyCheck) {
-        if (event.logicalKey == player.rightKeybind ||
-            event.logicalKey == player.leftKeybind) handleLRUp(player);
-      }
-
-      if (event is RawKeyDownEvent) {
-        if (keyCheck) {
-          if (event.logicalKey == LogicalKeyboardKey.add) {
-            return;
-          }
-          if (j == null) {
-            j = event.logicalKey;
-            return;
-          }
-          if (t == null) {
-            t = event.logicalKey;
-            return;
-          }
-          if (r == null) {
-            r = event.logicalKey;
-            return;
-          }
-          if (l == null) {
-            l = event.logicalKey;
-            keyCheck = false;
-            impassables
-                .add(Player(Offset(0, 400), Offset.zero, j!, t!, r!, l!));
-            j = null;
-            t = null;
-            r = null;
-            l = null;
-            print('boop beep');
-            return;
-          }
-        }
-        if (event.logicalKey == LogicalKeyboardKey.keyR) {
-          reset();
-        }
-        if (event.logicalKey == LogicalKeyboardKey.add) {
-          keyCheck = true;
-          print('beep boop');
-        }
-        if (event.logicalKey == LogicalKeyboardKey.keyR) {
-          reset();
-        }
-        if (event.logicalKey == LogicalKeyboardKey.keyU) {
-          gravity = -gravity;
-          xGravity = -xGravity;
-        }
-        if (event.logicalKey == player.rightKeybind) {
-          handleRDown(player);
-        } else if (event.logicalKey == player.leftKeybind) {
-          handleLDown(player);
-        } else if (event.logicalKey == player.jumpKeybind && !player.jumped) {
-          handleJDown(player);
-        } else if (event.logicalKey == player.takeKeybind) {
-          handleTake(player);
-        }
-      }
     }
   }
 
@@ -578,10 +439,18 @@ class PhysicsSimulator extends ChangeNotifier {
   void handleTake(PC player) {
     final Impassable? holding = player.holding;
     if (holding != null) {
+      Offset idir = player.moveDir;
+      if (player.pressedsInited && player.leftPressed()) {
+          player.moveDir += Offset(-2 * gravity.sign, 2 * xGravity.sign);
+        }
+        if (!player.pressedsInited && player.preRightPressed() || player.pressedsInited && player.rightPressed()) {
+          player.moveDir += Offset(2 * gravity.sign, -2 * xGravity.sign);
+        }
       holding.moveDir = Offset(player.moveDir.dx, player.moveDir.dy);
       player.holding!.isHolding = false;
       player.holding!.color = player.holding!.startColor;
       player.holding = null;
+      player.moveDir = idir;
       return;
     }
     player.topLeft += Offset(gravity.sign * 10, xGravity.sign * 10);
@@ -743,7 +612,7 @@ abstract class PC extends Impassable {
     this.jumpKeybind,
     this.takeKeybind,
     this.rightKeybind,
-    this.leftKeybind,
+    this.leftKeybind, this.preRightPressed,
   ) : super(topLeft, bottomRight, moveDir, Colors.yellow);
   Impassable? holding;
   final LogicalKeyboardKey jumpKeybind;
@@ -751,16 +620,20 @@ abstract class PC extends Impassable {
   final LogicalKeyboardKey rightKeybind;
   final LogicalKeyboardKey leftKeybind;
   bool jumped = false;
+  bool pressedsInited = false;
+  late final bool Function() leftPressed;
+  final bool Function() preRightPressed;
+  late final bool Function() rightPressed;
 }
-
+bool noop(){return false;}
 class Player extends PC {
   Player(Offset topLeft, Offset moveDir,
-      [LogicalKeyboardKey jumpKeybind = LogicalKeyboardKey.keyW,
+      [bool Function() prerightpressed=noop, LogicalKeyboardKey jumpKeybind = LogicalKeyboardKey.keyW,
       LogicalKeyboardKey takeKeybind = LogicalKeyboardKey.keyE,
       LogicalKeyboardKey rightKeybind = LogicalKeyboardKey.keyD,
       LogicalKeyboardKey leftKeybind = LogicalKeyboardKey.keyA])
       : super(topLeft, topLeft + Offset(20, -20), moveDir, jumpKeybind,
-            takeKeybind, rightKeybind, leftKeybind);
+            takeKeybind, rightKeybind, leftKeybind, prerightpressed);
   bool get pushable => true;
   String get type => 'Player';
 }

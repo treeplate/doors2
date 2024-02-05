@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_midi_command/flutter_midi_command.dart';
 import 'package:flutter_midi_command/flutter_midi_command_messages.dart';
 import 'package:platformy/fpw_template.dart'
@@ -27,7 +28,6 @@ List<Impassable> imps = [
   Button(Offset(60, 50), 0),
   Door(Offset(100, 80)),
   Impassable(Offset(-110, 200), Offset(-100, 0), Offset.zero),
-  Player(Offset(0, 0), Offset(0, 0)),
 ];
 
 class TitleScreen extends StatelessWidget {
@@ -364,6 +364,33 @@ class _GameWidgetState extends State<GameWidget>
     }()
         .then((value) => setupPhysics(false).then((value) async {
               ticker = createTicker(tick)..start();
+              if (widget.title == "Wooden Doors 2 (Hold D to start)") {
+                // TODO: make this not rely on title
+                physicsSimulator.impassables.add(
+                  Player(
+                    Offset(0, 0),
+                    Offset(0, 0),
+                    () =>
+                    rNotePressed ||
+                    HardwareKeyboard.instance.logicalKeysPressed
+                        .contains(LogicalKeyboardKey.keyD),
+                  ),
+                );
+                reset(); // TODO: this is a hack
+              } else {
+                PC pc = physicsSimulator.impassables.firstWhere((element) => element is PC) as PC;
+                pc.leftPressed = () =>
+                    lPressedTas ||
+                    lNotePressed ||
+                    HardwareKeyboard.instance.logicalKeysPressed
+                        .contains(LogicalKeyboardKey.keyA);
+                pc.rightPressed = () =>
+                    rPressedTas ||
+                    rNotePressed ||
+                    HardwareKeyboard.instance.logicalKeysPressed
+                        .contains(LogicalKeyboardKey.keyD);
+                      pc.pressedsInited = true;
+              }
               setup = true;
             }));
   }
@@ -375,12 +402,13 @@ class _GameWidgetState extends State<GameWidget>
 
   Future<void> setupPhysics(bool physicsSimExists) async {
     if (physicsSimExists) {
+      print('moo');
       physicsSimulator.dispose();
     }
     List<List<MoveKey>> tas = [];
     var output = tasOut && filePickerSupported ? await pickFile() : null;
     if (output != null)
-      outTas = getFile(output.path);
+      outTas = output;
     else
       outTas = null;
     if (next != null) {
@@ -406,8 +434,8 @@ class _GameWidgetState extends State<GameWidget>
       },
       widget.impassables,
       widget.endX,
-      tas,
     );
+    tasKeys = tas;
     physicsSimulator.addListener(() {
       setState(() {
         // equivalent to just calling markNeedsBuild
@@ -418,6 +446,77 @@ class _GameWidgetState extends State<GameWidget>
 
   void reset() {
     physicsSimulator.reset();
+  }
+
+  bool keyCheck = false;
+  LogicalKeyboardKey? j;
+  LogicalKeyboardKey? t;
+  LogicalKeyboardKey? r;
+  LogicalKeyboardKey? l;
+  void handleKeyPress(RawKeyEvent event) {
+    //print(event);
+    for (PC player in physicsSimulator.impassables.whereType()) {
+      if (event is RawKeyDownEvent) {
+        if (keyCheck) {
+          if (event.logicalKey == LogicalKeyboardKey.add) {
+            return;
+          }
+          if (j == null) {
+            j = event.logicalKey;
+            return;
+          }
+          if (t == null) {
+            t = event.logicalKey;
+            return;
+          }
+          if (r == null) {
+            r = event.logicalKey;
+            return;
+          }
+          if (l == null) {
+            l = event.logicalKey;
+            keyCheck = false;
+            physicsSimulator.impassables.add(
+              Player(
+                Offset(0, 400),
+                Offset.zero,
+                ()=>false,
+                j!,
+                t!,
+                r!,
+                l!,
+              )..pressedsInited = true..leftPressed = (() => HardwareKeyboard
+                  .instance.logicalKeysPressed
+                  .contains(l))
+                ..rightPressed = () =>
+                    HardwareKeyboard.instance.logicalKeysPressed.contains(r),
+            );
+            j = null;
+            t = null;
+            r = null;
+            l = null;
+            print('boop beep');
+            return;
+          }
+        }
+        if (event.logicalKey == LogicalKeyboardKey.keyR) {
+          reset();
+        }
+        if (event.logicalKey == LogicalKeyboardKey.add) {
+          keyCheck = true;
+          print('beep boop');
+        }
+        if (event.logicalKey == LogicalKeyboardKey.keyU) {
+          physicsSimulator.gravity = -physicsSimulator.gravity;
+          physicsSimulator.xGravity = -physicsSimulator.xGravity;
+        }
+        if (event.logicalKey == player.jumpKeybind && !player.jumped) {
+          physicsSimulator.handleJDown(player);
+        } else if (event.logicalKey == player.takeKeybind) {
+          physicsSimulator.handleTake(player);
+        }
+      }
+    }
   }
 
   int darkModeT = 0; // 0 = dark mode, 255 = light mode
@@ -439,8 +538,8 @@ class _GameWidgetState extends State<GameWidget>
     if (midiDevices.length > 0 &&
         (incomingMidiMessages == null || !midiDevices.single.connected)) {
       incomingMidiMessages?.cancel();
-      Player p = physicsSimulator.impassables
-          .firstWhere((element) => element is Player) as Player;
+      PC p = physicsSimulator.impassables
+          .firstWhere((element) => element is PC) as PC;
       incomingMidiMessages = MidiCommand().onMidiDataReceived!.listen((event) {
         MidiMessage msg = parseMidiMessage(event.data);
         if (!mounted) return;
@@ -448,9 +547,9 @@ class _GameWidgetState extends State<GameWidget>
           if (msg is NoteOnMessage) {
             keyPressed = true;
             if (msg.note == 21) {
-              physicsSimulator.handleLDown(p);
+              lNotePressed = true;
             } else if (msg.note == 23) {
-              physicsSimulator.handleRDown(p);
+              rNotePressed = true;
             } else if (msg.note == 22) {
               physicsSimulator.handleJDown(p);
             } else if (msg.note == 24) {
@@ -461,9 +560,9 @@ class _GameWidgetState extends State<GameWidget>
           } else if (msg is NoteOffMessage) {
             keyPressed = true;
             if (msg.note == 21) {
-              physicsSimulator.handleLRUp(p);
+              lNotePressed = false;
             } else if (msg.note == 23) {
-              physicsSimulator.handleLRUp(p);
+              rNotePressed = false;
             }
           }
         });
@@ -542,23 +641,23 @@ class _GameWidgetState extends State<GameWidget>
   KeyEventResult _handleKeyPress(FocusNode node, RawKeyEvent event) {
     if (event.repeat) return KeyEventResult.handled;
     keyPressed = true;
-    if (physicsSimulator.impassables.every((element) => element is! Player))
+    if (physicsSimulator.impassables.every((element) => element is! PC))
       return KeyEventResult.ignored;
-    physicsSimulator.handleKeyPress(event);
+    handleKeyPress(event);
     if (event.logicalKey ==
-        physicsSimulator.impassables.whereType<Player>().first.leftKeybind) {
+        physicsSimulator.impassables.whereType<PC>().first.leftKeybind) {
       keys.add(MoveKey.l);
     }
     if (event.logicalKey ==
-        physicsSimulator.impassables.whereType<Player>().first.rightKeybind) {
+        physicsSimulator.impassables.whereType<PC>().first.rightKeybind) {
       keys.add(MoveKey.r);
     }
     if (event.logicalKey ==
-        physicsSimulator.impassables.whereType<Player>().first.jumpKeybind) {
+        physicsSimulator.impassables.whereType<PC>().first.jumpKeybind) {
       keys.add(MoveKey.j);
     }
     if (event.logicalKey ==
-        physicsSimulator.impassables.whereType<Player>().first.takeKeybind) {
+        physicsSimulator.impassables.whereType<PC>().first.takeKeybind) {
       keys.add(MoveKey.t);
     }
     return KeyEventResult.handled;
@@ -576,6 +675,16 @@ class _GameWidgetState extends State<GameWidget>
   Duration p2Arg = Duration.zero;
   List<double> fpss = [];
   List<double> mfpss = [];
+
+  bool lPressedTas = false;
+  bool rPressedTas = false;
+  bool jPressedTas = false;
+  bool tPressedTas = false;
+
+  bool lNotePressed = false;
+  bool rNotePressed = false;
+
+  late List<List<MoveKey>> tasKeys;
   void tick(Duration arg) {
     if (widget.darkMode && darkModeT > 0) {
       darkModeT -= 20;
@@ -605,9 +714,51 @@ class _GameWidgetState extends State<GameWidget>
           keys.isEmpty ? '\n' : ',${keys.map((e) => e.name).join(',')}\n',
         );
       keys = [];
-      if (physicsSimulator.tasKeys.length > physicsSimulator.ticks &&
-          physicsSimulator.tasKeys[physicsSimulator.ticks].length > 0) {
+
+      if (tasKeys.length > physicsSimulator.ticks &&
+          tasKeys[physicsSimulator.ticks].length > 0) {
         keyPressed = true;
+      }
+      if (tasKeys.length > physicsSimulator.ticks &&
+          physicsSimulator.impassables.any(
+            (element) => element is PC,
+          )) {
+        for (MoveKey key in tasKeys[physicsSimulator.ticks]) {
+          PC player =
+              physicsSimulator.impassables.whereType<PC>().single;
+          switch (key) {
+            case MoveKey.l:
+              if (!lPressedTas) {
+                lPressedTas = true;
+              } else {
+                lPressedTas = false;
+              }
+              break;
+            case MoveKey.r:
+              if (!rPressedTas) {
+                rPressedTas = true;
+              } else {
+                rPressedTas = false;
+              }
+              break;
+            case MoveKey.t:
+              if (tPressedTas) {
+                tPressedTas = false;
+              } else {
+                tPressedTas = true;
+                physicsSimulator.handleTake(player);
+              }
+              break;
+            case MoveKey.j:
+              if (!jPressedTas) {
+                physicsSimulator.handleJDown(player);
+                jPressedTas = true;
+              } else {
+                jPressedTas = false;
+              }
+              break;
+          }
+        }
       }
       physicsSimulator.tick();
       if (keyPressed) {
