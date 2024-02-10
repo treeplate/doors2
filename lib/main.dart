@@ -6,7 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_midi_command/flutter_midi_command.dart';
 import 'package:flutter_midi_command/flutter_midi_command_messages.dart';
 import 'package:platformy/fpw_template.dart'
-    if (dart.library.io) 'file_picker_wrapper.dart';
+    if (dart.library.io) 'file_picker_wrapper_io.dart';
 
 import 'dart:math';
 
