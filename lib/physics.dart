@@ -243,14 +243,14 @@ class PhysicsSimulator extends ChangeNotifier {
         platform.bottomRight += Offset(xGravity.sign, gravity.sign);
       } else {
         playerVel = platform.moveDir;
-        
+
         if (platform.pressedsInited && platform.leftPressed()) {
           platform.moveDir += Offset(-2 * gravity.sign, 2 * xGravity.sign);
         }
-        if (!platform.pressedsInited && platform.preRightPressed() || platform.pressedsInited && platform.rightPressed()) {
+        if (!platform.pressedsInited && platform.preRightPressed() ||
+            platform.pressedsInited && platform.rightPressed()) {
           platform.moveDir += Offset(2 * gravity.sign, -2 * xGravity.sign);
         }
-        
       }
       for (double i = 0; i < platform.moveDir.dx.abs(); i += kVelStep) {
         if (platform.moveDir.dx == 0) break;
@@ -278,8 +278,7 @@ class PhysicsSimulator extends ChangeNotifier {
                 platform.holding!,
                 platform.holding is PC,
                 platform.holding!.type.toString() +
-                    (((platform.holding is PC ? platform.holding : null)
-                                as PC?)
+                    (((platform.holding is PC ? platform.holding : null) as PC?)
                             ?.jumpKeybind
                             .keyLabel ??
                         'Uhh'));
@@ -345,12 +344,12 @@ class PhysicsSimulator extends ChangeNotifier {
         }
         if (collided == null || !collided!.pushable) {
           for (Impassable? thing in pushing) {
-            if (thing is! Door || !untick) {
+            assert(thing == platform || thing is! Door);
+            if (thing is! Door) {
               thing?.topLeft -= Offset(sX, sY);
               thing?.bottomRight -= Offset(sX, sY);
+              thing?.moveDir -= Offset(sX, sY);
             }
-            if (sX != 0) thing?.moveDir = Offset(0, thing.moveDir.dy);
-            if (sY != 0) thing?.moveDir = Offset(thing.moveDir.dx, 0);
           }
           if (untick) platform.unTick();
           return;
@@ -360,6 +359,7 @@ class PhysicsSimulator extends ChangeNotifier {
         }
         collided!.topLeft += Offset(sX, sY);
         collided!.bottomRight += Offset(sX, sY);
+        collided!.moveDir = Offset(sX, sY);
         pushing.add(collided!);
         continue outer;
       }
@@ -441,11 +441,12 @@ class PhysicsSimulator extends ChangeNotifier {
     if (holding != null) {
       Offset idir = player.moveDir;
       if (player.pressedsInited && player.leftPressed()) {
-          player.moveDir += Offset(-2 * gravity.sign, 2 * xGravity.sign);
-        }
-        if (!player.pressedsInited && player.preRightPressed() || player.pressedsInited && player.rightPressed()) {
-          player.moveDir += Offset(2 * gravity.sign, -2 * xGravity.sign);
-        }
+        player.moveDir += Offset(-2 * gravity.sign, 2 * xGravity.sign);
+      }
+      if (!player.pressedsInited && player.preRightPressed() ||
+          player.pressedsInited && player.rightPressed()) {
+        player.moveDir += Offset(2 * gravity.sign, -2 * xGravity.sign);
+      }
       holding.moveDir = Offset(player.moveDir.dx, player.moveDir.dy);
       player.holding!.isHolding = false;
       player.holding!.color = player.holding!.startColor;
@@ -612,7 +613,8 @@ abstract class PC extends Impassable {
     this.jumpKeybind,
     this.takeKeybind,
     this.rightKeybind,
-    this.leftKeybind, this.preRightPressed,
+    this.leftKeybind,
+    this.preRightPressed,
   ) : super(topLeft, bottomRight, moveDir, Colors.yellow);
   Impassable? holding;
   final LogicalKeyboardKey jumpKeybind;
@@ -625,10 +627,15 @@ abstract class PC extends Impassable {
   final bool Function() preRightPressed;
   late final bool Function() rightPressed;
 }
-bool noop(){return false;}
+
+bool noop() {
+  return false;
+}
+
 class Player extends PC {
   Player(Offset topLeft, Offset moveDir,
-      [bool Function() prerightpressed=noop, LogicalKeyboardKey jumpKeybind = LogicalKeyboardKey.keyW,
+      [bool Function() prerightpressed = noop,
+      LogicalKeyboardKey jumpKeybind = LogicalKeyboardKey.keyW,
       LogicalKeyboardKey takeKeybind = LogicalKeyboardKey.keyE,
       LogicalKeyboardKey rightKeybind = LogicalKeyboardKey.keyD,
       LogicalKeyboardKey leftKeybind = LogicalKeyboardKey.keyA])

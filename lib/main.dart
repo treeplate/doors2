@@ -453,10 +453,10 @@ class _GameWidgetState extends State<GameWidget>
   LogicalKeyboardKey? t;
   LogicalKeyboardKey? r;
   LogicalKeyboardKey? l;
-  void handleKeyPress(RawKeyEvent event) {
+  void handleKeyPress(KeyEvent event) {
     //print(event);
     for (PC player in physicsSimulator.impassables.whereType()) {
-      if (event is RawKeyDownEvent) {
+      if (event is KeyDownEvent) {
         if (keyCheck) {
           if (event.logicalKey == LogicalKeyboardKey.add) {
             return;
@@ -573,7 +573,7 @@ class _GameWidgetState extends State<GameWidget>
     }
     return Focus(
       autofocus: true,
-      onKey: _handleKeyPress,
+      onKeyEvent: _handleKeyPress,
       debugLabel: 'Button',
       child: Builder(builder: (context) {
         focusContext = context;
@@ -638,8 +638,8 @@ class _GameWidgetState extends State<GameWidget>
 
   List<MoveKey> keys = [];
   bool keyPressed = false;
-  KeyEventResult _handleKeyPress(FocusNode node, RawKeyEvent event) {
-    if (event.repeat) return KeyEventResult.handled;
+  KeyEventResult _handleKeyPress(FocusNode node, KeyEvent event) {
+    if (event is KeyRepeatEvent) return KeyEventResult.handled;
     keyPressed = true;
     if (physicsSimulator.impassables.every((element) => element is! PC))
       return KeyEventResult.ignored;
