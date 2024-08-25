@@ -26,6 +26,7 @@ class PickedFile {
 Future<PickedFile?> pickFile() async {
   FilePickerResult? filePickerResult = (await FilePicker.platform.pickFiles(
     allowedExtensions: ['tas'],
+    type: FileType.custom,
   ));
   if (filePickerResult == null) return null;
   return PickedFile(
