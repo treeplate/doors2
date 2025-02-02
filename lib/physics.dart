@@ -6,6 +6,8 @@ import 'package:flutter/widgets.dart' show ChangeNotifier, mustCallSuper;
 
 final Stopwatch stopwatch = Stopwatch();
 
+const bool playersCollide = false;
+
 class Bouncy extends Impassable {
   Bouncy(Offset topLeft, Offset bottomRight, this.bounceVertically)
       : super(topLeft, bottomRight, Offset.zero);
@@ -71,7 +73,7 @@ void correctCollisions(List<Impassable> impassables) {
   while (true) {
     bool colliding1 = false;
     for (Impassable i in impassables.toList()) {
-      if (PhysicsSimulator.collidingStatic(impassables, i.rect).key) {
+      if (PhysicsSimulator.collidingStatic(impassables, i.rect, playersCollide || i is! PC).key) {
         if (i.topLeft.dy > 400) {
           impassables.remove(i);
           print("$i had to be removed");
@@ -107,14 +109,14 @@ class PhysicsSimulator extends ChangeNotifier {
   }
 
   Impassable? collided;
-  bool colliding<T extends Impassable>(Rect rect) {
-    MapEntry<bool, Impassable?> r = collidingStatic<T>(impassables, rect);
+  bool colliding<T extends Impassable>(Rect rect, bool collideWithPlayer) {
+    MapEntry<bool, Impassable?> r = collidingStatic<T>(impassables, rect, collideWithPlayer);
     collided = r.value;
     return r.key;
   }
 
   static MapEntry<bool, Impassable?> collidingStatic<T extends Impassable>(
-      List<Impassable> impassables, Rect rect) {
+      List<Impassable> impassables, Rect rect, bool collideWithPlayer) {
     Impassable? collided;
     if ((rect.top < 0 || rect.bottom > 400) && T == Impassable) {
       return MapEntry(true, collided);
@@ -136,7 +138,7 @@ class PhysicsSimulator extends ChangeNotifier {
       Offset oTL = obj.topLeft;
       Offset oBR = obj.bottomRight;
       obj.reset();
-      if (colliding(obj.rect)) {
+      if (colliding(obj.rect, playersCollide || obj is! PC)) {
         obj.topLeft = oTL;
         obj.bottomRight = oBR;
       }
@@ -162,7 +164,7 @@ class PhysicsSimulator extends ChangeNotifier {
     for (PC player in impassables.whereType<PC>().toList()) {
       updateHoldingPos(player);
       player.bottomRight -= Offset(xGravity.sign, gravity.sign);
-      colliding(player.rect);
+      colliding(player.rect, playersCollide);
       if (collided != null)
         checkForButtonAndBouncy(
           player,
@@ -175,7 +177,7 @@ class PhysicsSimulator extends ChangeNotifier {
     for (Box box in impassables.whereType<Box>()) {
       box.topLeft -= Offset(xGravity.sign, gravity.sign);
       box.bottomRight -= Offset(xGravity.sign, gravity.sign);
-      colliding(box.rect);
+      colliding(box.rect, true);
       if (collided != null)
         checkForButtonAndBouncy(
           box,
@@ -189,7 +191,7 @@ class PhysicsSimulator extends ChangeNotifier {
     for (RBox box in impassables.whereType<RBox>()) {
       box.topLeft += Offset(xGravity.sign, gravity.sign);
       box.bottomRight += Offset(xGravity.sign, gravity.sign);
-      colliding(box.rect);
+      colliding(box.rect, true);
       if (collided != null)
         checkForButtonAndBouncy(
           box,
@@ -203,7 +205,7 @@ class PhysicsSimulator extends ChangeNotifier {
     for (ABox box in impassables.whereType<ABox>()) {
       box.topLeft += Offset(gravity.sign, xGravity.sign);
       box.bottomRight += Offset(gravity.sign, xGravity.sign);
-      colliding(box.rect);
+      colliding(box.rect, true);
       if (collided != null)
         checkForButtonAndBouncy(
           box,
@@ -217,7 +219,7 @@ class PhysicsSimulator extends ChangeNotifier {
     for (DBox box in impassables.whereType<DBox>()) {
       box.topLeft += Offset(gravity.sign, xGravity.sign);
       box.bottomRight += Offset(gravity.sign, xGravity.sign);
-      colliding(box.rect);
+      colliding(box.rect, true);
       if (collided != null)
         checkForButtonAndBouncy(
           box,
@@ -234,7 +236,7 @@ class PhysicsSimulator extends ChangeNotifier {
       if (platform is! PC) {
         platform.topLeft -= Offset(xGravity.sign, gravity.sign);
         platform.bottomRight -= Offset(xGravity.sign, gravity.sign);
-        if (platform.moveDir.dx != 0 && colliding(platform.rect)) {
+        if (platform.moveDir.dx != 0 && colliding(platform.rect, true)) {
           platform.moveDir.dx < 0
               ? platform.moveDir += Offset(friction, 0)
               : platform.moveDir -= Offset(friction, 0);
@@ -255,13 +257,13 @@ class PhysicsSimulator extends ChangeNotifier {
       for (double i = 0; i < platform.moveDir.dx.abs(); i += kVelStep) {
         if (platform.moveDir.dx == 0) break;
         double speed = (platform.moveDir.dx < 0 ? -1 : 1) * kVelStep;
-        if (colliding(platform.rect)) {
+        if (colliding(platform.rect, playersCollide || platform is! PC)) {
           throw StateError('colliding $platform $collided');
         }
         platform.topLeft += Offset(speed, 0);
         platform.bottomRight += Offset(speed, 0);
         updateCollision(platform, speed, 0);
-        if (colliding(platform.rect)) {
+        if (colliding(platform.rect, playersCollide || platform is! PC)) {
           notifyListeners();
           throw StateError('colliding');
         }
@@ -334,7 +336,7 @@ class PhysicsSimulator extends ChangeNotifier {
     outer:
     while (true) {
       for (Impassable element in pushing.toList()) {
-        if (!colliding(element.rect)) {
+        if (!colliding(element.rect, playersCollide || element is! PC)) {
           continue;
         }
         if (collided != null) {
@@ -395,7 +397,7 @@ class PhysicsSimulator extends ChangeNotifier {
     player.holding!.topLeft = player.holding!.bottomRight - Offset(10, -10);
     player.holding!.moveDir = Offset.zero;
     //impassables.add(Box(player.holding!.topLeft, Colors.blue));
-    if (colliding(player.holding!.rect)) {
+    if (colliding(player.holding!.rect, playersCollide || player.holding is! PC)) {
       player.holding!.topLeft = otl;
       player.holding!.bottomRight = obr;
     }
@@ -424,7 +426,7 @@ class PhysicsSimulator extends ChangeNotifier {
   void _jump(double h, PC player, int yGravSign, int xGravSign) {
     player.topLeft -= Offset(3 * xGravSign / 1, 3 * yGravSign / 1);
     player.bottomRight -= Offset(3 * xGravSign / 1, 3 * yGravSign / 1);
-    if (colliding(player.rect) || dashMode) {
+    if (colliding(player.rect, playersCollide) || dashMode) {
       print('jmp');
       player.topLeft += Offset(6 * xGravSign / 1, 3 * yGravSign / 1);
       player.bottomRight += Offset(6 * xGravSign / 1, 3 * yGravSign / 1);
@@ -456,14 +458,14 @@ class PhysicsSimulator extends ChangeNotifier {
     }
     player.topLeft += Offset(gravity.sign * 10, xGravity.sign * 10);
     player.bottomRight += Offset(gravity.sign * 10, xGravity.sign * 10);
-    if (colliding(player.rect) && validTakeable(collided)) {
+    if (colliding(player.rect, playersCollide) && validTakeable(collided)) {
       player.holding = collided;
       player.holding!.color = Colors.orange;
       collided!.isHolding = true;
     }
     player.topLeft -= Offset(gravity.sign * 20, xGravity.sign * 20);
     player.bottomRight -= Offset(gravity.sign * 20, xGravity.sign * 20);
-    if (colliding(player.rect) && validTakeable(collided)) {
+    if (colliding(player.rect, playersCollide) && validTakeable(collided)) {
       player.holding = collided;
       player.holding!.color = Colors.orange;
       collided!.isHolding = true;

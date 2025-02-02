@@ -61,6 +61,7 @@ class TitleScreen extends StatelessWidget {
       doTasIn: false,
       darkMode: darkMode,
       toggleDarkMode: toggleDarkMode,
+      spawnPlayer: true,
     );
   }
 }
@@ -280,6 +281,7 @@ class _MyAppState extends State<MyApp> {
                       });
                     },
                     impassables: levels[level],
+                    spawnPlayer: false,
                   ),
                 ),
     );
@@ -313,11 +315,13 @@ class GameWidget extends StatefulWidget {
       this.auto = false,
       this.doTasIn = true,
       required this.darkMode,
-      required this.toggleDarkMode})
+      required this.toggleDarkMode,
+      required this.spawnPlayer})
       : super(key: key);
 
   final void Function(int, Impassable, bool, int, String) nextLevel;
   final String title;
+  final bool spawnPlayer;
   final double sXVel;
   final bool doTasIn;
   final bool darkMode;
@@ -352,47 +356,50 @@ class _GameWidgetState extends State<GameWidget>
         });
       });
     });
-    () async {
-      if (widget.doTasIn && filePickerSupported) {
-        PickedFile? firstFile = await pickFile();
-        if (firstFile != null) {
-          dir = dirname(firstFile.path);
-          next = basename(firstFile.path);
-          print('starting tas: $next');
-        }
+    getTasFile().then((value) => setupPhysics(false)).then(setupPlayer);
+  }
+
+  FutureOr<Null> setupPlayer(value) async {
+    ticker = createTicker(tick)..start();
+    if (widget.spawnPlayer) {
+      physicsSimulator.impassables.add(
+        Player(
+          Offset(0, 0),
+          Offset(0, 0),
+          () =>
+              rNotePressed ||
+              HardwareKeyboard.instance.logicalKeysPressed
+                  .contains(LogicalKeyboardKey.keyD),
+        ),
+      );
+      reset(); // TODO: this is a hack
+    } else {
+      PC pc = physicsSimulator.impassables
+          .firstWhere((element) => element is PC) as PC;
+      pc.leftPressed = () =>
+          lPressedTas ||
+          lNotePressed ||
+          HardwareKeyboard.instance.logicalKeysPressed
+              .contains(LogicalKeyboardKey.keyA);
+      pc.rightPressed = () =>
+          rPressedTas ||
+          rNotePressed ||
+          HardwareKeyboard.instance.logicalKeysPressed
+              .contains(LogicalKeyboardKey.keyD);
+      pc.pressedsInited = true;
+    }
+    setup = true;
+  }
+
+  Future<void> getTasFile() async {
+    if (widget.doTasIn && filePickerSupported) {
+      PickedFile? firstFile = await pickFile();
+      if (firstFile != null) {
+        dir = dirname(firstFile.path);
+        next = basename(firstFile.path);
+        print('starting tas: $next');
       }
-    }()
-        .then((value) => setupPhysics(false).then((value) async {
-              ticker = createTicker(tick)..start();
-              if (widget.title == "Wooden Doors 2 (Hold D to start)") {
-                // TODO: make this not rely on title
-                physicsSimulator.impassables.add(
-                  Player(
-                    Offset(0, 0),
-                    Offset(0, 0),
-                    () =>
-                    rNotePressed ||
-                    HardwareKeyboard.instance.logicalKeysPressed
-                        .contains(LogicalKeyboardKey.keyD),
-                  ),
-                );
-                reset(); // TODO: this is a hack
-              } else {
-                PC pc = physicsSimulator.impassables.firstWhere((element) => element is PC) as PC;
-                pc.leftPressed = () =>
-                    lPressedTas ||
-                    lNotePressed ||
-                    HardwareKeyboard.instance.logicalKeysPressed
-                        .contains(LogicalKeyboardKey.keyA);
-                pc.rightPressed = () =>
-                    rPressedTas ||
-                    rNotePressed ||
-                    HardwareKeyboard.instance.logicalKeysPressed
-                        .contains(LogicalKeyboardKey.keyD);
-                      pc.pressedsInited = true;
-              }
-              setup = true;
-            }));
+    }
   }
 
   PickedFile? outTas;
@@ -480,14 +487,15 @@ class _GameWidgetState extends State<GameWidget>
               Player(
                 Offset(0, 400),
                 Offset.zero,
-                ()=>false,
+                () => false,
                 j!,
                 t!,
                 r!,
                 l!,
-              )..pressedsInited = true..leftPressed = (() => HardwareKeyboard
-                  .instance.logicalKeysPressed
-                  .contains(l))
+              )
+                ..pressedsInited = true
+                ..leftPressed = (() =>
+                    HardwareKeyboard.instance.logicalKeysPressed.contains(l))
                 ..rightPressed = () =>
                     HardwareKeyboard.instance.logicalKeysPressed.contains(r),
             );
@@ -538,8 +546,8 @@ class _GameWidgetState extends State<GameWidget>
     if (midiDevices.length > 0 &&
         (incomingMidiMessages == null || !midiDevices.single.connected)) {
       incomingMidiMessages?.cancel();
-      PC p = physicsSimulator.impassables
-          .firstWhere((element) => element is PC) as PC;
+      PC p = physicsSimulator.impassables.firstWhere((element) => element is PC)
+          as PC;
       incomingMidiMessages = MidiCommand().onMidiDataReceived!.listen((event) {
         MidiMessage msg = parseMidiMessage(event.data);
         if (!mounted) return;
@@ -611,7 +619,7 @@ class _GameWidgetState extends State<GameWidget>
                             physicsSimulator.ghosts,
                             physicsSimulator.dashMode,
                             physicsSimulator.endX,
-                            Color(~Theme.of(context).canvasColor.value)
+                            Color(~Theme.of(context).canvasColor.toARGB32())
                                 .withAlpha(255)),
                         size: Size(constraints.biggest.width, 400),
                       ),
@@ -724,8 +732,7 @@ class _GameWidgetState extends State<GameWidget>
             (element) => element is PC,
           )) {
         for (MoveKey key in tasKeys[physicsSimulator.ticks]) {
-          PC player =
-              physicsSimulator.impassables.whereType<PC>().single;
+          PC player = physicsSimulator.impassables.whereType<PC>().single;
           switch (key) {
             case MoveKey.l:
               if (!lPressedTas) {
