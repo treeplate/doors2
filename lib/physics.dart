@@ -73,14 +73,18 @@ void correctCollisions(List<Impassable> impassables) {
   while (true) {
     bool colliding1 = false;
     for (Impassable i in impassables.toList()) {
-      if (PhysicsSimulator.collidingStatic(impassables, i.rect, playersCollide || i is! PC).key) {
-        if (i.topLeft.dy > 400) {
-          impassables.remove(i);
-          print("$i had to be removed");
-        }
+      if (PhysicsSimulator.collidingStatic(
+              impassables, i.rect, playersCollide || i is! PC)
+          .key) {
         colliding1 = true;
-        i.topLeft = Offset(i.topLeft.dx, i.topLeft.dy + 10);
-        i.bottomRight = Offset(i.bottomRight.dx, i.bottomRight.dy + 10);
+        if (i.topLeft.dy > 400) {
+          i.topLeft = Offset(i.topLeft.dx - 1, 0);
+          i.bottomRight = Offset(i.bottomRight.dx - 1, 0);
+          print(i.topLeft);
+        } else {
+          i.topLeft = Offset(i.topLeft.dx, i.topLeft.dy + 1);
+          i.bottomRight = Offset(i.bottomRight.dx, i.bottomRight.dy + 1);
+        }
       }
     }
     if (!colliding1) {
@@ -110,7 +114,8 @@ class PhysicsSimulator extends ChangeNotifier {
 
   Impassable? collided;
   bool colliding<T extends Impassable>(Rect rect, bool collideWithPlayer) {
-    MapEntry<bool, Impassable?> r = collidingStatic<T>(impassables, rect, collideWithPlayer);
+    MapEntry<bool, Impassable?> r =
+        collidingStatic<T>(impassables, rect, collideWithPlayer);
     collided = r.value;
     return r.key;
   }
@@ -124,7 +129,8 @@ class PhysicsSimulator extends ChangeNotifier {
     for (Impassable wall in impassables) {
       if (!rect.intersect(wall.rect).isEmpty &&
           wall is T &&
-          rect != wall.rect) {
+          rect != wall.rect &&
+          (collideWithPlayer || wall is! PC)) {
         collided = wall;
         return MapEntry(true, collided);
       }
@@ -258,14 +264,14 @@ class PhysicsSimulator extends ChangeNotifier {
         if (platform.moveDir.dx == 0) break;
         double speed = (platform.moveDir.dx < 0 ? -1 : 1) * kVelStep;
         if (colliding(platform.rect, playersCollide || platform is! PC)) {
-          throw StateError('colliding $platform $collided');
+          print('colliding $platform $collided');
         }
         platform.topLeft += Offset(speed, 0);
         platform.bottomRight += Offset(speed, 0);
         updateCollision(platform, speed, 0);
         if (colliding(platform.rect, playersCollide || platform is! PC)) {
           notifyListeners();
-          throw StateError('colliding');
+          print('colliding $platform $collided');
         }
       }
       if (platform.moveDir != (playerVel ?? platform.moveDir)) {
@@ -280,31 +286,26 @@ class PhysicsSimulator extends ChangeNotifier {
                 platform.holding!,
                 platform.holding is PC,
                 platform.holding!.type.toString() +
-                    (((platform.holding is PC ? platform.holding : null) as PC?)
-                            ?.jumpKeybind
-                            .keyLabel ??
-                        'Uhh'));
+                     impassables.whereType<PC>().toList().cast().indexOf(platform.holding).toString());
           }
         }
-        impassables.remove(platform..reset());
         nextLevel(
-            1,
-            platform,
-            platform is PC,
-            platform.type.toString() +
-                ((platform is PC ? platform : null)?.jumpKeybind.keyLabel ??
-                    'Uhh'));
+          1,
+          platform,
+          platform is PC,
+          platform.type.toString() + impassables.whereType<PC>().toList().cast().indexOf(platform).toString(),
+        );
+        impassables.remove(platform..reset());
         return;
       }
       if (platform.topLeft.dx <= -endX) {
-        impassables.remove(platform..reset());
         nextLevel(
-            -1,
-            platform,
-            platform is PC,
-            platform.type.toString() +
-                ((platform is PC ? platform : null)?.jumpKeybind.keyLabel ??
-                    'Uhh'));
+          -1,
+          platform,
+          platform is PC,
+          platform.type.toString() + impassables.whereType<PC>().toList().cast().indexOf(platform).toString(),
+        );
+        impassables.remove(platform..reset());
         return;
       }
       for (double i = 0; i < platform.moveDir.dy.abs(); i += kVelStep) {
@@ -357,7 +358,8 @@ class PhysicsSimulator extends ChangeNotifier {
           return;
         }
         if (pushing.contains(collided)) {
-          throw StateError('recursive? $collided');
+          print('ERROR: RECURSIVE');
+          return;
         }
         collided!.topLeft += Offset(sX, sY);
         collided!.bottomRight += Offset(sX, sY);
@@ -397,7 +399,8 @@ class PhysicsSimulator extends ChangeNotifier {
     player.holding!.topLeft = player.holding!.bottomRight - Offset(10, -10);
     player.holding!.moveDir = Offset.zero;
     //impassables.add(Box(player.holding!.topLeft, Colors.blue));
-    if (colliding(player.holding!.rect, playersCollide || player.holding is! PC)) {
+    if (colliding(
+        player.holding!.rect, playersCollide || player.holding is! PC)) {
       player.holding!.topLeft = otl;
       player.holding!.bottomRight = obr;
     }
@@ -427,12 +430,10 @@ class PhysicsSimulator extends ChangeNotifier {
     player.topLeft -= Offset(3 * xGravSign / 1, 3 * yGravSign / 1);
     player.bottomRight -= Offset(3 * xGravSign / 1, 3 * yGravSign / 1);
     if (colliding(player.rect, playersCollide) || dashMode) {
-      print('jmp');
       player.topLeft += Offset(6 * xGravSign / 1, 3 * yGravSign / 1);
       player.bottomRight += Offset(6 * xGravSign / 1, 3 * yGravSign / 1);
       player.moveDir += Offset(h * xGravSign, h * yGravSign);
     } else {
-      print('nop');
       player.topLeft += Offset(3 * xGravSign / 1, 3 * yGravSign / 1);
       player.bottomRight += Offset(3 * xGravSign / 1, 3 * yGravSign / 1);
     }
@@ -475,7 +476,7 @@ class PhysicsSimulator extends ChangeNotifier {
   }
 
   String toString() {
-    return 'I am a P-S';
+    return 'PhysicsSimulator';
   }
 
   void bounce(Bouncy me, Impassable bounced) {

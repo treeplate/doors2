@@ -359,34 +359,47 @@ class _GameWidgetState extends State<GameWidget>
     getTasFile().then((value) => setupPhysics(false)).then(setupPlayer);
   }
 
+  static const int n = 1;
+  List<bool> playerRs = List.filled(n, false);
+  List<bool> playerLs = List.filled(n, false);
   FutureOr<Null> setupPlayer(value) async {
     ticker = createTicker(tick)..start();
     if (widget.spawnPlayer) {
-      physicsSimulator.impassables.add(
-        Player(
-          Offset(0, 0),
-          Offset(0, 0),
-          () =>
-              rNotePressed ||
-              HardwareKeyboard.instance.logicalKeysPressed
-                  .contains(LogicalKeyboardKey.keyD),
-        ),
-      );
-      reset(); // TODO: this is a hack
+      int i = 0;
+      while (i < n) {
+        int ii = i;
+        physicsSimulator.impassables.add(
+          Player(
+            Offset(0, 100),
+            Offset(0, 0),
+            () =>
+                rNotePressed ||
+                HardwareKeyboard.instance.logicalKeysPressed
+                    .contains(LogicalKeyboardKey.keyD) ||
+                playerRs[ii],
+          ),
+        );
+        i++;
+      }
     } else {
-      PC pc = physicsSimulator.impassables
-          .firstWhere((element) => element is PC) as PC;
-      pc.leftPressed = () =>
-          lPressedTas ||
-          lNotePressed ||
-          HardwareKeyboard.instance.logicalKeysPressed
-              .contains(LogicalKeyboardKey.keyA);
-      pc.rightPressed = () =>
-          rPressedTas ||
-          rNotePressed ||
-          HardwareKeyboard.instance.logicalKeysPressed
-              .contains(LogicalKeyboardKey.keyD);
-      pc.pressedsInited = true;
+      int i = 0;
+      for (PC pc in physicsSimulator.impassables.whereType()) {
+        int ii = i;
+        pc.leftPressed = () =>
+            lPressedTas ||
+            lNotePressed ||
+            HardwareKeyboard.instance.logicalKeysPressed
+                .contains(LogicalKeyboardKey.keyA) ||
+            playerRs[ii];
+        pc.rightPressed = () =>
+            rPressedTas ||
+            rNotePressed ||
+            HardwareKeyboard.instance.logicalKeysPressed
+                .contains(LogicalKeyboardKey.keyD) ||
+            playerLs[ii];
+        pc.pressedsInited = true;
+        i++;
+      }
     }
     setup = true;
   }
@@ -409,7 +422,6 @@ class _GameWidgetState extends State<GameWidget>
 
   Future<void> setupPhysics(bool physicsSimExists) async {
     if (physicsSimExists) {
-      print('moo');
       physicsSimulator.dispose();
     }
     List<List<MoveKey>> tas = [];
@@ -436,8 +448,15 @@ class _GameWidgetState extends State<GameWidget>
 
     physicsSimulator = PhysicsSimulator(
       (i, o, isPlayer, winner) {
+        if (isPlayer) {
+          for (PC player in widget.impassables
+              .whereType<Player>()
+              .where((e) => e != o)
+              .toList()) {
+            widget.nextLevel(i, player, false, ticksMoved, winner);
+          }
+        }
         widget.nextLevel(i, o, isPlayer, ticksMoved, winner);
-        if (isPlayer) ticksMoved = 0;
       },
       widget.impassables,
       widget.endX,
@@ -459,75 +478,77 @@ class _GameWidgetState extends State<GameWidget>
   LogicalKeyboardKey? j;
   LogicalKeyboardKey? t;
   LogicalKeyboardKey? r;
-  LogicalKeyboardKey? l;
-  void handleKeyPress(KeyEvent event) {
-    //print(event);
+  KeyEventResult handleKeyPress(KeyEvent event) {
+    KeyEventResult result = KeyEventResult.ignored;
     for (PC player in physicsSimulator.impassables.whereType()) {
       if (event is KeyDownEvent) {
         if (keyCheck) {
-          if (event.logicalKey == LogicalKeyboardKey.add) {
-            return;
+          if (event.logicalKey == LogicalKeyboardKey.minus) {
+            return KeyEventResult.ignored;
           }
           if (j == null) {
             j = event.logicalKey;
-            return;
+            return KeyEventResult.handled;
           }
           if (t == null) {
             t = event.logicalKey;
-            return;
+            return KeyEventResult.handled;
           }
-          if (r == null) {
-            r = event.logicalKey;
-            return;
+          if (this.r == null) {
+            this.r = event.logicalKey;
+            return KeyEventResult.handled;
           }
-          if (l == null) {
-            l = event.logicalKey;
-            keyCheck = false;
-            physicsSimulator.impassables.add(
-              Player(
-                Offset(0, 400),
-                Offset.zero,
-                () => false,
-                j!,
-                t!,
-                r!,
-                l!,
-              )
-                ..pressedsInited = true
-                ..leftPressed = (() =>
-                    HardwareKeyboard.instance.logicalKeysPressed.contains(l))
-                ..rightPressed = () =>
-                    HardwareKeyboard.instance.logicalKeysPressed.contains(r),
-            );
-            j = null;
-            t = null;
-            r = null;
-            l = null;
-            print('boop beep');
-            return;
-          }
+          LogicalKeyboardKey l = event.logicalKey;
+          LogicalKeyboardKey r = this.r!;
+
+          keyCheck = false;
+          physicsSimulator.impassables.add(
+            Player(
+              Offset(0, 400),
+              Offset.zero,
+              () => false,
+              j!,
+              t!,
+              r,
+              l,
+            )
+              ..pressedsInited = true
+              ..leftPressed = (() =>
+                  HardwareKeyboard.instance.logicalKeysPressed.contains(l))
+              ..rightPressed = () =>
+                  HardwareKeyboard.instance.logicalKeysPressed.contains(r),
+          );
+          j = null;
+          t = null;
+          this.r = null;
+          print('boop beep');
+          return KeyEventResult.handled;
         }
         if (event.logicalKey == LogicalKeyboardKey.keyR) {
           reset();
+          return KeyEventResult.handled;
         }
-        if (event.logicalKey == LogicalKeyboardKey.add) {
+        if (event.logicalKey == LogicalKeyboardKey.minus) {
           keyCheck = true;
           print('beep boop');
+          return KeyEventResult.handled;
         }
         if (event.logicalKey == LogicalKeyboardKey.keyU) {
           physicsSimulator.gravity = -physicsSimulator.gravity;
           physicsSimulator.xGravity = -physicsSimulator.xGravity;
+          return KeyEventResult.handled;
         }
         if (event.logicalKey == player.jumpKeybind && !player.jumped) {
           physicsSimulator.handleJDown(player);
+          result = KeyEventResult.handled;
         } else if (event.logicalKey == player.takeKeybind) {
           physicsSimulator.handleTake(player);
+          result = KeyEventResult.handled;
         }
       }
     }
+    return result;
   }
-
-  int darkModeT = 0; // 0 = dark mode, 255 = light mode
 
   late BuildContext focusContext;
   @override
@@ -582,7 +603,7 @@ class _GameWidgetState extends State<GameWidget>
     return Focus(
       autofocus: true,
       onKeyEvent: _handleKeyPress,
-      debugLabel: 'Button',
+      debugLabel: 'I am a focus',
       child: Builder(builder: (context) {
         focusContext = context;
         Focus.of(focusContext).requestFocus();
@@ -595,43 +616,41 @@ class _GameWidgetState extends State<GameWidget>
               IconButton(
                   onPressed: widget.toggleDarkMode,
                   icon: widget.darkMode
-                      ? Icon(Icons.wb_sunny_outlined)
-                      : Icon(Icons.mode_night_outlined)),
+                      ? Icon(Icons.light_mode_outlined)
+                      : Icon(Icons.dark_mode_outlined)),
               SizedBox(width: 40)
             ],
           ),
-          body: GestureDetector(
-            child: Center(
-              child: LayoutBuilder(builder: (context, constraints) {
-                return Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      '${fps.roundToDouble()} fps',
-                      style: TextStyle(color: Colors.brown),
+          body: Center(
+            child: LayoutBuilder(builder: (context, constraints) {
+              return Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    '${fps.roundToDouble()} fps',
+                    style: TextStyle(color: Colors.brown),
+                  ),
+                  Container(
+                    color: Theme.of(context).canvasColor,
+                    height: 400,
+                    child: CustomPaint(
+                      painter: GamePainter(
+                          physicsSimulator.impassables,
+                          physicsSimulator.ghosts,
+                          physicsSimulator.dashMode,
+                          physicsSimulator.endX,
+                          Color(~Theme.of(context).canvasColor.toARGB32())
+                              .withAlpha(255)),
+                      size: Size(constraints.biggest.width, 400),
                     ),
-                    Container(
-                      color: Theme.of(context).canvasColor,
-                      height: 400,
-                      child: CustomPaint(
-                        painter: GamePainter(
-                            physicsSimulator.impassables,
-                            physicsSimulator.ghosts,
-                            physicsSimulator.dashMode,
-                            physicsSimulator.endX,
-                            Color(~Theme.of(context).canvasColor.toARGB32())
-                                .withAlpha(255)),
-                        size: Size(constraints.biggest.width, 400),
-                      ),
-                    ),
-                    Text(
-                      '${maxFps.roundToDouble()} possible fps',
-                      style: TextStyle(color: Colors.brown),
-                    ),
-                  ],
-                );
-              }),
-            ),
+                  ),
+                  Text(
+                    '${maxFps.roundToDouble()} possible fps',
+                    style: TextStyle(color: Colors.brown),
+                  ),
+                ],
+              );
+            }),
           ),
         );
       }),
@@ -641,16 +660,20 @@ class _GameWidgetState extends State<GameWidget>
   void dispose() {
     ticker.dispose();
     physicsSimulator.dispose();
+
     super.dispose();
   }
 
   List<MoveKey> keys = [];
   bool keyPressed = false;
   KeyEventResult _handleKeyPress(FocusNode node, KeyEvent event) {
-    if (event is KeyRepeatEvent) return KeyEventResult.handled;
+    if (event is KeyRepeatEvent) {
+      return KeyEventResult.handled;
+    }
     keyPressed = true;
-    if (physicsSimulator.impassables.every((element) => element is! PC))
+    if (physicsSimulator.impassables.every((element) => element is! PC)) {
       return KeyEventResult.ignored;
+    }
     handleKeyPress(event);
     if (event.logicalKey ==
         physicsSimulator.impassables.whereType<PC>().first.leftKeybind) {
@@ -694,12 +717,19 @@ class _GameWidgetState extends State<GameWidget>
 
   late List<List<MoveKey>> tasKeys;
   void tick(Duration arg) {
-    if (widget.darkMode && darkModeT > 0) {
-      darkModeT -= 20;
-    } else if (!widget.darkMode && darkModeT < 255) {
-      darkModeT += 20;
+    /*
+    Random r = Random();
+    playerLs = List.generate(playerLs.length, (i) => r.nextBool());
+    playerRs = List.generate(playerLs.length, (i) => r.nextInt(3) == 0);
+    for (PC player in widget.impassables.whereType()) {
+      if (r.nextBool()) {
+        physicsSimulator.handleJDown(player);
+      }
+      if (r.nextBool()) {
+        physicsSimulator.handleTake(player);
+      }
     }
-    darkModeT = max(0, min(darkModeT, 255));
+    */
     if (mfpss.length >= 10) {
       maxFps = mfpss.fold<double>(
               0, (previousValue, element) => previousValue + element) /
