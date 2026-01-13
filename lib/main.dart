@@ -3,16 +3,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_midi_command/flutter_midi_command.dart';
-import 'package:flutter_midi_command/flutter_midi_command_messages.dart';
-import 'package:platformy/fpw_template.dart'
-    if (dart.library.io) 'file_picker_wrapper_io.dart';
 
 import 'dart:math';
 
-import 'midi-parser.dart';
 import 'physics.dart';
-import 'package:path/path.dart';
 
 void main() {
   runApp(MyApp());
@@ -338,25 +332,11 @@ class _GameWidgetState extends State<GameWidget>
   late PhysicsSimulator physicsSimulator;
   late final Ticker ticker;
   bool setup = false;
-  List<MidiDevice> midiDevices = [];
   StreamSubscription? incomingMidiMessages;
   @override
   void initState() {
     super.initState();
-    MidiCommand().devices.then((value) {
-      setState(() {
-        midiDevices = value!;
-      });
-    });
-    MidiCommand().onMidiSetupChanged!.listen((event) {
-      MidiCommand().devices.then((value) {
-        if (!mounted) return;
-        setState(() {
-          midiDevices = value!;
-        });
-      });
-    });
-    getTasFile().then((value) => setupPhysics(false)).then(setupPlayer);
+     setupPhysics(false).then(setupPlayer);
   }
 
   static const int n = 1;
@@ -403,19 +383,6 @@ class _GameWidgetState extends State<GameWidget>
     }
     setup = true;
   }
-
-  Future<void> getTasFile() async {
-    if (widget.doTasIn && filePickerSupported) {
-      PickedFile? firstFile = await pickFile();
-      if (firstFile != null) {
-        dir = dirname(firstFile.path);
-        next = basename(firstFile.path);
-        print('starting tas: $next');
-      }
-    }
-  }
-
-  PickedFile? outTas;
   String? dir;
 
   String? next;
@@ -423,27 +390,6 @@ class _GameWidgetState extends State<GameWidget>
   Future<void> setupPhysics(bool physicsSimExists) async {
     if (physicsSimExists) {
       physicsSimulator.dispose();
-    }
-    List<List<MoveKey>> tas = [];
-    var output = tasOut && filePickerSupported ? await pickFile() : null;
-    if (output != null)
-      outTas = output;
-    else
-      outTas = null;
-    if (next != null) {
-      PickedFile tasRec = getFile(join(dir!, next));
-      if (tasRec.exists) {
-        var lines = tasRec.readFileLines();
-        next = lines.first;
-        print('new tas: $next');
-
-        tas = lines
-            .skip(1)
-            .map((e) => e.split(',').skip(1).map((e) => parseKey(e)).toList())
-            .toList();
-      } else {
-        print('nope $tasRec');
-      }
     }
 
     physicsSimulator = PhysicsSimulator(
@@ -461,7 +407,6 @@ class _GameWidgetState extends State<GameWidget>
       widget.impassables,
       widget.endX,
     );
-    tasKeys = tas;
     physicsSimulator.addListener(() {
       setState(() {
         // equivalent to just calling markNeedsBuild
@@ -556,50 +501,6 @@ class _GameWidgetState extends State<GameWidget>
     if (!setup) {
       return ColoredBox(color: Colors.yellow);
     }
-    if (midiDevices.length > 1) {
-      return Directionality(
-        textDirection: TextDirection.ltr,
-        child: Center(
-            child: Text(
-                'Please disconnect all but one of the following MIDI devices:\n${midiDevices.map((e) => e.name).join('\n')}')),
-      );
-    }
-    if (midiDevices.length > 0 &&
-        (incomingMidiMessages == null || !midiDevices.single.connected)) {
-      incomingMidiMessages?.cancel();
-      PC p = physicsSimulator.impassables.firstWhere((element) => element is PC)
-          as PC;
-      incomingMidiMessages = MidiCommand().onMidiDataReceived!.listen((event) {
-        MidiMessage msg = parseMidiMessage(event.data);
-        if (!mounted) return;
-        setState(() {
-          if (msg is NoteOnMessage) {
-            keyPressed = true;
-            if (msg.note == 21) {
-              lNotePressed = true;
-            } else if (msg.note == 23) {
-              rNotePressed = true;
-            } else if (msg.note == 22) {
-              physicsSimulator.handleJDown(p);
-            } else if (msg.note == 24) {
-              physicsSimulator.handleTake(p);
-            } else if (msg.note == 25) {
-              physicsSimulator.reset();
-            }
-          } else if (msg is NoteOffMessage) {
-            keyPressed = true;
-            if (msg.note == 21) {
-              lNotePressed = false;
-            } else if (msg.note == 23) {
-              rNotePressed = false;
-            }
-          }
-        });
-      });
-    }
-    if (midiDevices.length > 0 && !midiDevices.single.connected) {
-      MidiCommand().connectToDevice(midiDevices.single);
-    }
     return Focus(
       autofocus: true,
       onKeyEvent: _handleKeyPress,
@@ -611,7 +512,6 @@ class _GameWidgetState extends State<GameWidget>
           appBar: AppBar(
             title: Text(widget.title),
             actions: [
-              if (midiDevices.length > 0) Icon(Icons.piano),
               IconButton(onPressed: reset, icon: Icon(Icons.replay_outlined)),
               IconButton(
                   onPressed: widget.toggleDarkMode,
@@ -715,7 +615,6 @@ class _GameWidgetState extends State<GameWidget>
   bool lNotePressed = false;
   bool rNotePressed = false;
 
-  late List<List<MoveKey>> tasKeys;
   void tick(Duration arg) {
     /*
     Random r = Random();
@@ -747,56 +646,9 @@ class _GameWidgetState extends State<GameWidget>
         fpss = [];
       }
       fpss.add(1 / (arg.inMilliseconds / 1000 - pArg.inMilliseconds / 1000));
-      if (outTas != null)
-        outTas!.appendToFile(
-          keys.isEmpty ? '\n' : ',${keys.map((e) => e.name).join(',')}\n',
-        );
       keys = [];
 
-      if (tasKeys.length > physicsSimulator.ticks &&
-          tasKeys[physicsSimulator.ticks].length > 0) {
-        keyPressed = true;
-      }
-      if (tasKeys.length > physicsSimulator.ticks &&
-          physicsSimulator.impassables.any(
-            (element) => element is PC,
-          )) {
-        for (MoveKey key in tasKeys[physicsSimulator.ticks]) {
-          PC player = physicsSimulator.impassables.whereType<PC>().single;
-          switch (key) {
-            case MoveKey.l:
-              if (!lPressedTas) {
-                lPressedTas = true;
-              } else {
-                lPressedTas = false;
-              }
-              break;
-            case MoveKey.r:
-              if (!rPressedTas) {
-                rPressedTas = true;
-              } else {
-                rPressedTas = false;
-              }
-              break;
-            case MoveKey.t:
-              if (tPressedTas) {
-                tPressedTas = false;
-              } else {
-                tPressedTas = true;
-                physicsSimulator.handleTake(player);
-              }
-              break;
-            case MoveKey.j:
-              if (!jPressedTas) {
-                physicsSimulator.handleJDown(player);
-                jPressedTas = true;
-              } else {
-                jPressedTas = false;
-              }
-              break;
-          }
-        }
-      }
+      
       physicsSimulator.tick();
       if (keyPressed) {
         ticksMoved++;

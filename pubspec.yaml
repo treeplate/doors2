@@ -25,9 +25,7 @@ dependencies:
     sdk: flutter
 
 
-  file_picker: any
   path: any
-  flutter_midi_command: any
 
 dev_dependencies:
   flutter_test:
