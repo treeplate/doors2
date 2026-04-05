@@ -24,7 +24,7 @@ class PickedFile {
 }
 
 Future<PickedFile?> pickFile() async {
-  FilePickerResult? filePickerResult = (await FilePicker.platform.pickFiles(
+  FilePickerResult? filePickerResult = (await FilePicker.pickFiles(
     allowedExtensions: ['tas'],
     type: FileType.custom,
   ));

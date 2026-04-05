@@ -29,7 +29,7 @@ class MovingPlatform extends Impassable {
     }
   }
 
-  void untick() {
+  void unTick() {
     super.unTick();
     topLeft -= speed;
     bottomRight -= speed;
@@ -73,7 +73,7 @@ void correctCollisions(List<Impassable> impassables) {
   while (true) {
     bool colliding1 = false;
     for (Impassable i in impassables.toList()) {
-      if (PhysicsSimulator.collidingStatic(
+      while (PhysicsSimulator.collidingStatic(
               impassables, i.rect, playersCollide || i is! PC)
           .key) {
         colliding1 = true;
@@ -529,7 +529,7 @@ class Door extends Impassable {
       : t = open ? 0 : 1,
         super(topLeft, topLeft + Offset(10, -50), Offset.zero, Colors.teal);
   bool open;
-  double t = 1;
+  double t;
   String get type => 'Door';
   void reset() {
     super.reset();
