@@ -627,7 +627,7 @@ class _GameWidgetState extends State<GameWidget>
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
-                    '${fps.roundToDouble()} fps',
+                    '${fps.toStringAsFixed(2)} fps',
                     style: TextStyle(color: Colors.brown),
                   ),
                   Container(
@@ -645,7 +645,7 @@ class _GameWidgetState extends State<GameWidget>
                     ),
                   ),
                   Text(
-                    '${maxFps.roundToDouble()} possible fps',
+                    '${maxFps.toStringAsFixed(2)} possible fps',
                     style: TextStyle(color: Colors.brown),
                   ),
                 ],
@@ -702,10 +702,8 @@ class _GameWidgetState extends State<GameWidget>
   }
 
   int ticksMoved = 0;
-  Duration pArg = Duration.zero;
-  Duration p2Arg = Duration.zero;
-  List<double> fpss = [];
-  List<double> mfpss = [];
+  Duration previousDuration = Duration.zero;
+  Duration previousTickDuration = Duration.zero;
 
   bool lPressedTas = false;
   bool rPressedTas = false;
@@ -730,23 +728,17 @@ class _GameWidgetState extends State<GameWidget>
       }
     }
     */
-    if (mfpss.length >= 10) {
-      maxFps = mfpss.fold<double>(
-              0, (previousValue, element) => previousValue + element) /
-          mfpss.length;
-      mfpss = [];
-    }
-    mfpss.add(1 / (arg.inMilliseconds / 1000 - p2Arg.inMilliseconds / 1000));
-    p2Arg = arg;
-    if (arg - pArg >= Duration(milliseconds: 16) &&
+    setState(() {
+      print('meow!');
+      maxFps = Duration.microsecondsPerSecond /
+          (arg - previousDuration).inMicroseconds;
+    });
+    previousDuration = arg;
+    if (arg - previousTickDuration >= Duration(milliseconds: 16) &&
         !physicsSimulator.isDisposed) {
-      if (mfpss.length >= 10) {
-        fps = fpss.fold<double>(
-                0, (previousValue, element) => previousValue + element) /
-            fpss.length;
-        fpss = [];
-      }
-      fpss.add(1 / (arg.inMilliseconds / 1000 - pArg.inMilliseconds / 1000));
+      fps = Duration.microsecondsPerSecond /
+          (arg - previousTickDuration).inMicroseconds;
+      previousTickDuration = arg;
       if (outTas != null)
         outTas!.appendToFile(
           keys.isEmpty ? '\n' : ',${keys.map((e) => e.name).join(',')}\n',
@@ -803,7 +795,6 @@ class _GameWidgetState extends State<GameWidget>
         stopwatchElapsed =
             stopwatchElapsed + Duration(milliseconds: 1000 ~/ 60);
       }
-      pArg = arg;
     }
   }
 }
